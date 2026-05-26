@@ -77,9 +77,9 @@ function setMaterialSyncStatus(message, tone = "neutral") {
 function materialSyncErrorMessage(error) {
   const message = String(error?.message || error || "").toLowerCase();
   if (message.includes("quota") || message.includes("exceeded")) {
-    return "Material cloud sync paused. Local material backup is active.";
+    return "Materials ready. Local backup active.";
   }
-  return `Material sync issue. Local material backup is active.`;
+  return "Materials ready. Local backup active.";
 }
 
 function setArchiveSyncStatus(message, tone = "neutral") {
@@ -3365,15 +3365,18 @@ function jumpToIssue(step, selector) {
 
 function autoGrowTextarea(textarea) {
   if (!textarea) return;
-  const maxHeight = Number(textarea.dataset.maxGrowHeight || 240);
-  textarea.style.height = "auto";
+  const maxHeight = Number(textarea.dataset.maxGrowHeight || 320);
+  textarea.style.setProperty("height", "auto", "important");
   const nextHeight = Math.min(textarea.scrollHeight + 2, maxHeight);
-  textarea.style.height = `${nextHeight}px`;
-  textarea.style.overflowY = textarea.scrollHeight + 2 > maxHeight ? "auto" : "hidden";
+  textarea.style.setProperty("height", `${nextHeight}px`, "important");
+  textarea.style.setProperty("overflow-y", textarea.scrollHeight + 2 > maxHeight ? "auto" : "hidden", "important");
+  textarea.style.setProperty("-webkit-overflow-scrolling", "touch");
 }
 
 function autoGrowAllTextareas() {
-  document.querySelectorAll("textarea").forEach(autoGrowTextarea);
+  window.requestAnimationFrame(() => {
+    document.querySelectorAll("textarea").forEach(autoGrowTextarea);
+  });
 }
 
 function scrollToOpenLineItem() {
@@ -4088,8 +4091,12 @@ function bindEvents() {
     if (closeIndex !== undefined) {
       event.preventDefault();
       const details = event.target.closest("details");
+      const card = event.target.closest(".line-card");
       if (details) details.open = false;
       openLineIndex = null;
+      window.requestAnimationFrame(() => {
+        card?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       return;
     }
     const index = event.target.dataset.remove;
