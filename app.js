@@ -74,6 +74,14 @@ function setMaterialSyncStatus(message, tone = "neutral") {
   status.dataset.tone = tone;
 }
 
+function materialSyncErrorMessage(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  if (message.includes("quota") || message.includes("exceeded")) {
+    return "Material cloud sync paused. Local material backup is active.";
+  }
+  return `Material sync issue. Local material backup is active.`;
+}
+
 function setArchiveSyncStatus(message, tone = "neutral") {
   const status = document.getElementById("archiveSyncStatus");
   if (!status) return;
@@ -325,7 +333,7 @@ async function syncManualMaterialsFromSupabase() {
       "success"
     );
   } catch (error) {
-    setMaterialSyncStatus(`Material sync failed: ${error.message || "local backup active"}`, "error");
+    setMaterialSyncStatus(materialSyncErrorMessage(error), "warning");
     console.warn("Supabase material sync skipped:", error.message || error);
   }
 }
@@ -1632,10 +1640,12 @@ function useSupplierMaterial(id) {
       hours: 0,
       other: 0
     }));
+    openLineIndex = state.lines.length - 1;
+    activeStep = "pricing";
   }
   state.meta.dirty = true;
-  activeStep = state.settings.pricingMethod === "quick" ? "pricing" : activeStep;
   render();
+  scrollToOpenLineItem();
 }
 
 function clearManualMaterialForm() {
@@ -3355,12 +3365,25 @@ function jumpToIssue(step, selector) {
 
 function autoGrowTextarea(textarea) {
   if (!textarea) return;
+  const maxHeight = Number(textarea.dataset.maxGrowHeight || 240);
   textarea.style.height = "auto";
-  textarea.style.height = `${textarea.scrollHeight + 2}px`;
+  const nextHeight = Math.min(textarea.scrollHeight + 2, maxHeight);
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = textarea.scrollHeight + 2 > maxHeight ? "auto" : "hidden";
 }
 
 function autoGrowAllTextareas() {
   document.querySelectorAll("textarea").forEach(autoGrowTextarea);
+}
+
+function scrollToOpenLineItem() {
+  window.requestAnimationFrame(() => {
+    const card = document.querySelector(`[data-close-line="${openLineIndex}"]`)?.closest(".line-card");
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    const firstField = card.querySelector("input, textarea, select");
+    firstField?.focus({ preventScroll: true });
+  });
 }
 
 function render() {
@@ -4096,10 +4119,9 @@ function bindEvents() {
     state.lines.push(defaultLine({ quality: "Premium", marketRate: 0 }));
     openLineIndex = state.lines.length - 1;
     state.meta.dirty = true;
+    activeStep = "pricing";
     render();
-    window.requestAnimationFrame(() => {
-      document.querySelector(`[data-close-line="${openLineIndex}"]`)?.closest(".line-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    scrollToOpenLineItem();
   });
 
   document.getElementById("printQuote").addEventListener("click", () => {
