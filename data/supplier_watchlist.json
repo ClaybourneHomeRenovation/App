@@ -1,0 +1,78 @@
+{
+  "updatedBy": "Claybourne supplier monitor",
+  "notes": "Use product pages where possible. Search pages are useful for layout monitoring but may not expose a reliable unit price.",
+  "suppliers": [
+    {
+      "supplier": "Home Depot Canada",
+      "category": "Tile",
+      "name": "Porcelain tile search",
+      "url": "https://www.homedepot.ca/search?q=porcelain%20tile",
+      "unit": "search",
+      "keywords": ["tile", "porcelain", "bathroom", "floor", "shower"],
+      "quoteMaterial": "Tile"
+    },
+    {
+      "supplier": "Home Depot Canada",
+      "category": "Waterproofing",
+      "name": "Waterproofing membrane search",
+      "url": "https://www.homedepot.ca/search?q=waterproofing%20membrane",
+      "unit": "search",
+      "keywords": ["waterproofing", "membrane", "bathroom", "shower"],
+      "quoteMaterial": "Custom material"
+    },
+    {
+      "supplier": "RONA",
+      "category": "Tile",
+      "name": "Tile search",
+      "url": "https://www.rona.ca/en/search?query=porcelain%20tile",
+      "unit": "search",
+      "keywords": ["tile", "porcelain", "bathroom", "floor"],
+      "quoteMaterial": "Tile"
+    },
+    {
+      "supplier": "RONA",
+      "category": "Drywall",
+      "name": "Drywall search",
+      "url": "https://www.rona.ca/en/search?query=drywall%20sheet",
+      "unit": "search",
+      "keywords": ["drywall", "sheet", "basement", "wall"],
+      "quoteMaterial": "Drywall sheet"
+    },
+    {
+      "supplier": "Home Hardware",
+      "category": "Paint",
+      "name": "Interior paint search",
+      "url": "https://www.homehardware.ca/en/search?query=interior%20paint",
+      "unit": "search",
+      "keywords": ["paint", "primer", "interior", "finish"],
+      "quoteMaterial": "Primer / paint"
+    },
+    {
+      "supplier": "Home Hardware",
+      "category": "Fasteners",
+      "name": "Construction adhesive search",
+      "url": "https://www.homehardware.ca/en/search?query=construction%20adhesive",
+      "unit": "search",
+      "keywords": ["adhesive", "fasteners", "install", "trim"],
+      "quoteMaterial": "Fasteners / adhesive"
+    },
+    {
+      "supplier": "Canadian Tire",
+      "category": "Tools",
+      "name": "Blades and consumables search",
+      "url": "https://www.canadiantire.ca/en/search-results.html?q=construction%20blades",
+      "unit": "search",
+      "keywords": ["blades", "tools", "consumables", "cutting"],
+      "quoteMaterial": "Fasteners / adhesive"
+    },
+    {
+      "supplier": "BMR",
+      "category": "Lumber",
+      "name": "Framing lumber search",
+      "url": "https://www.bmr.ca/en/catalogsearch/result/?q=framing%20lumber",
+      "unit": "search",
+      "keywords": ["lumber", "framing", "basement"],
+      "quoteMaterial": "Lumber / framing"
+    }
+  ]
+}

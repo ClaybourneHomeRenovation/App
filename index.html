@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#a9844f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Claybourne">
+    <title>Claybourne Quote Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <section class="auth-screen" id="authScreen">
+      <form class="auth-card" id="authForm">
+        <img src="24f3232d-c8cd-479a-9e2b-b5e3a6f63e42.png" alt="Claybourne Home Renovation">
+        <label>Email
+          <input id="authEmail" type="email" autocomplete="email" required>
+        </label>
+        <label>Password
+          <input id="authPassword" type="password" autocomplete="current-password" required minlength="6">
+        </label>
+        <div class="auth-actions">
+          <button class="primary-button" id="signInButton" type="submit">Sign In</button>
+          <button class="ghost-button" id="createAccountButton" type="button">Create Account</button>
+        </div>
+        <div class="auth-status" id="authStatus"></div>
+      </form>
+
+      <form class="auth-card is-hidden" id="createAccountForm">
+        <img src="24f3232d-c8cd-479a-9e2b-b5e3a6f63e42.png" alt="Claybourne Home Renovation">
+        <label>Email
+          <input id="createEmail" type="email" autocomplete="email" required>
+        </label>
+        <label>Password
+          <input id="createPassword" type="password" autocomplete="new-password" required minlength="6">
+        </label>
+        <label>Access code
+          <input id="createAccessCode" type="password" autocomplete="off" required>
+        </label>
+        <div class="auth-actions">
+          <button class="primary-button" id="submitCreateAccount" type="submit">Create Account</button>
+          <button class="ghost-button" id="backToSignIn" type="button">Back</button>
+        </div>
+        <div class="auth-status" id="createAuthStatus"></div>
+      </form>
+    </section>
+
+    <main class="app-shell is-hidden" id="appShell">
+      <section class="workspace" aria-label="Quote builder">
+        <header class="masthead">
+          <div class="brand-lockup">
+            <img src="24f3232d-c8cd-479a-9e2b-b5e3a6f63e42.png" alt="Claybourne Home Renovation">
+          </div>
+          <div class="masthead-actions">
+            <span class="account-status" id="accountStatus">Not signed in</span>
+            <span class="save-status" id="saveStatus">Offline save active</span>
+            <button class="ghost-button" id="resetSample" type="button">New Client</button>
+            <button class="secondary-button" id="printServiceAgreement" type="button">Print Service Agreement</button>
+            <button class="primary-button" id="printQuote" type="button">Print Package</button>
+            <button class="ghost-button" id="signOutButton" type="button">Sign Out</button>
+          </div>
+        </header>
+
+        <section class="panel intro-panel">
+          <div>
+            <p class="eyebrow">Claybourne Quote Builder</p>
+            <h1>Prepare a polished project quote with real renovation inputs.</h1>
+          </div>
+          <div class="quote-stats" aria-label="Quote totals">
+            <div>
+              <span>Client Total</span>
+              <strong id="statTotal">$0.00</strong>
+            </div>
+            <div>
+              <span>Balance Due</span>
+              <strong id="statBalance">$0.00</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="work-mode-shell">
+          <aside class="app-section-menu" aria-label="Main sections">
+            <button class="section-menu-button" type="button" data-main-section="dashboard">Dashboard</button>
+            <button class="section-menu-button is-active" type="button" data-main-section="quote">Quote Builder</button>
+            <button class="section-menu-button" type="button" data-main-section="materials">Materials</button>
+            <button class="section-menu-button" type="button" data-main-section="archive">Archive</button>
+          </aside>
+
+          <div class="work-mode-content">
+            <div class="mobile-quote-summary" aria-label="Mobile quote summary">
+              <div>
+                <span>Total</span>
+                <strong id="mobileTotalQuote">$0.00</strong>
+              </div>
+              <div>
+                <span>Deposit</span>
+                <strong id="mobileDeposit">$0.00</strong>
+              </div>
+              <div>
+                <span>Balance</span>
+                <strong id="mobileBalance">$0.00</strong>
+              </div>
+            </div>
+            <div class="quote-builder-actions">
+              <button class="ghost-button clear-quote-button" id="clearQuote" type="button">Clear Quote</button>
+            </div>
+            <div class="success-message is-hidden" id="quoteSuccessMessage"></div>
+            <nav class="quote-flow-nav" aria-label="Quote steps">
+              <button class="flow-step-button is-active" type="button" data-go-step="start">1. Start Quote</button>
+              <button class="flow-step-button" type="button" data-go-step="scope">2. Project Scope</button>
+              <button class="flow-step-button" type="button" data-go-step="pricing">3. Pricing</button>
+              <button class="flow-step-button" type="button" data-go-step="review">4. Review Numbers</button>
+            </nav>
+
+        <section class="builder-grid">
+          <aside class="panel preferences-panel pricing-settings-drawer flow-step" data-step="pricing">
+            <details>
+              <summary>
+                <span>
+                  <span class="eyebrow">Preferences</span>
+                  <strong>Pricing Setup</strong>
+                </span>
+              </summary>
+
+              <div class="field-stack">
+                <label>Pricing preset
+                  <select id="presetSelect" aria-label="Pricing preset">
+                    <option value="premium">Premium Renovation</option>
+                    <option value="handyman">Handyman Small Job</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label class="is-hidden">Pricing preset mirror
+                  <select id="pricingPresetMirror">
+                    <option value="premium">Premium Renovation</option>
+                    <option value="handyman">Handyman Small Job</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label>Quote type
+                  <select id="pricingMethod">
+                    <option value="quick">Simple Quote Builder</option>
+                    <option value="detailed">Detailed Quote</option>
+                  </select>
+                </label>
+                <label>Payment already received
+                  <input id="depositPaid" type="number" min="0" step="25">
+                </label>
+              </div>
+
+            <details class="settings-menu">
+              <summary>Advanced pricing settings</summary>
+              <div class="field-stack">
+                <label>Labour rate / worker-hour
+                  <input id="hourlyRate" type="number" min="0" step="1">
+                  <small>Base billing rate used for each worker-hour on the quote.</small>
+                </label>
+                <label>Minimum charge
+                  <input id="minimumJob" type="number" min="0" step="25">
+                  <small>Protects small jobs from being priced below the minimum profitable visit.</small>
+                </label>
+                <label>Business overhead
+                  <input id="overheadRate" type="number" min="0" step="0.5">
+                  <small>Covers business costs such as insurance, admin time, software, fuel, tools, and operating expenses.</small>
+                </label>
+                <label>Company profit
+                  <input id="profitRate" type="number" min="0" step="0.5">
+                  <small>Money retained by the business after direct costs and overhead. This is separate from owner pay.</small>
+                </label>
+                <label>Material waste allowance
+                  <input id="wasteRate" type="number" min="0" step="0.5">
+                  <small>Adds room for cut waste, defects, and ordinary material loss.</small>
+                </label>
+                <label>Material handling markup
+                  <input id="materialMarkupRate" type="number" min="0" step="0.5">
+                  <small>Covers sourcing, pickup, coordination, returns, and responsibility for supplied materials.</small>
+                </label>
+                <label>Trade coordination fee
+                  <input id="subMarkupRate" type="number" min="0" step="0.5">
+                  <small>Covers scheduling and managing subcontractors and outside trades.</small>
+                </label>
+                <label>Risk buffer
+                  <input id="contingencyRate" type="number" min="0" step="0.5">
+                  <small>Protects the quote against unknown site conditions, price changes, and small estimating errors.</small>
+                </label>
+                <label>Standard savings
+                  <input id="standardSavingsRate" type="number" min="0" step="0.5">
+                  <small>Optional default discount applied to detailed line items.</small>
+                </label>
+                <label>Tax / HST
+                  <input id="taxRate" type="number" min="0" step="0.1">
+                  <small>Ontario HST is normally 13%. Changing this should be intentional.</small>
+                </label>
+              </div>
+            </details>
+
+            <details class="settings-menu">
+              <summary>Quote document details</summary>
+              <div class="field-stack">
+                <label>Quote number
+                  <input id="quoteNumber" type="text">
+                </label>
+                <label>Quote date
+                  <input id="quoteDate" type="date">
+                </label>
+                <label>Valid until
+                  <input id="validUntil" type="date">
+                </label>
+                <label>Prepared by
+                  <input id="preparedBy" type="text">
+                </label>
+              </div>
+            </details>
+            </details>
+          </aside>
+
+          <section class="panel form-panel flow-step" data-step="start">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Client & Project</p>
+                <h2>Start Quote</h2>
+              </div>
+            </div>
+
+            <div class="client-grid">
+              <label>Client name
+                <input id="clientName" type="text" placeholder="Client name">
+              </label>
+              <label>Phone
+                <input id="clientPhone" type="tel" placeholder="Phone">
+              </label>
+              <label>Project address
+                <input id="projectAddress" type="text" placeholder="Street, city">
+              </label>
+              <label>Email
+                <input id="clientEmail" type="email" placeholder="Email">
+              </label>
+              <label>Project type
+                <select id="projectType">
+                  <option>Bathroom Remodel</option>
+                  <option>Kitchen Remodel</option>
+                  <option>Basement Remodel</option>
+                  <option>Handyman Job</option>
+                  <option>Custom Job</option>
+                  <option>General Renovation</option>
+                </select>
+              </label>
+              <label>Job status
+                <select id="jobStatus">
+                  <option>Draft</option>
+                  <option>Sent</option>
+                  <option>Follow-up needed</option>
+                  <option>Approved</option>
+                  <option>Deposit paid</option>
+                  <option>In progress</option>
+                  <option>Completed</option>
+                  <option>Balance due</option>
+                  <option>Paid</option>
+                  <option>Cancelled</option>
+                </select>
+              </label>
+              <label>Materials supplied by
+                <select id="materialSupply">
+                  <option>Claybourne supplied</option>
+                  <option>Client supplied</option>
+                  <option>Mixed supply</option>
+                </select>
+              </label>
+              <label>Estimated timeline
+                <input id="timeline" type="text" placeholder="Example: 2-3 weeks">
+              </label>
+              <label>Special conditions
+                <input id="specialConditions" type="text" placeholder="Optional">
+              </label>
+            </div>
+
+            <label class="scope-label">Scope of work
+              <textarea class="long-textarea" id="scopeOfWork" rows="6" placeholder="Describe rooms, materials, finishes, exclusions, access notes, and assumptions."></textarea>
+            </label>
+          </section>
+        </section>
+
+        <section class="panel materials-panel flow-step" id="quickPricingPanel" data-step="pricing">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Simple Quote Builder</p>
+              <h2>Labour + Materials</h2>
+            </div>
+          </div>
+          <div class="labour-grid">
+            <label>Workers
+              <input id="quickWorkers" type="number" min="1" step="1">
+            </label>
+            <label>Estimated days
+              <input id="quickDays" type="number" min="0" step="0.5">
+            </label>
+            <label>Hours per day
+              <input id="quickHoursPerDay" type="number" min="0" step="0.5">
+            </label>
+            <label>Material allowance
+              <input id="quickMaterialCost" type="number" min="0" step="25">
+            </label>
+            <label>Other costs
+              <input id="quickOtherCost" type="number" min="0" step="25">
+            </label>
+            <label>Risk level
+              <select id="quickRiskLevel">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
+          <div class="simple-quote-summary" aria-label="Simple quote totals">
+            <div>
+              <span>Total Quote</span>
+              <strong id="quickTotalQuote">$0.00</strong>
+            </div>
+            <div>
+              <span>Initial Deposit (Materials)</span>
+              <strong id="quickDeposit">$0.00</strong>
+            </div>
+            <div>
+              <span>Balance</span>
+              <strong id="quickBalance">$0.00</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="detail-grid flow-step" data-step="scope">
+          <section class="panel detail-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Scope Controls</p>
+                <h2>Define The Work</h2>
+              </div>
+            </div>
+            <div class="client-grid">
+              <label>Rooms / areas
+                <textarea class="short-textarea" id="roomsAreas" rows="4" placeholder="Bathroom, ensuite, basement laundry, main floor hallway..."></textarea>
+              </label>
+              <label>Finishes / quality level
+                <textarea class="short-textarea" id="finishLevel" rows="4" placeholder="Premium tile, paint finish, trim profile, fixture level..."></textarea>
+              </label>
+              <label>Included work
+                <textarea class="long-textarea" id="includedWork" rows="6" placeholder="Demolition, waterproofing, install vanity, plumbing fixture install, cleanup..."></textarea>
+              </label>
+              <label>Excluded work
+                <textarea class="long-textarea" id="excludedWork" rows="6" placeholder="Hidden mold, structural repairs, permit fees, engineering, code upgrades..."></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel detail-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Risk Review</p>
+                <h2>Site Conditions</h2>
+              </div>
+            </div>
+            <div class="check-grid" id="siteConditions"></div>
+            <label class="scope-label">Site notes
+              <textarea class="short-textarea" id="siteNotes" rows="4" placeholder="Access, parking, elevator restrictions, working hours, visible damage, previous renovations..."></textarea>
+            </label>
+          </section>
+        </section>
+
+        <section class="panel materials-panel detailed-panel flow-step" data-step="pricing">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Labour Reality</p>
+              <h2>Hours Beyond On-Site Work</h2>
+            </div>
+          </div>
+          <div class="labour-grid">
+            <label>Prep / setup hours
+              <input id="prepHours" type="number" min="0" step="0.25">
+            </label>
+            <label>Travel hours
+              <input id="travelHours" type="number" min="0" step="0.25">
+            </label>
+            <label>Material pickup hours
+              <input id="pickupHours" type="number" min="0" step="0.25">
+            </label>
+            <label>Cleanup / touch-up hours
+              <input id="cleanupHours" type="number" min="0" step="0.25">
+            </label>
+            <label>Admin / coordination hours
+              <input id="adminHours" type="number" min="0" step="0.25">
+            </label>
+            <label>Helper/sub labour cost
+              <input id="helperCost" type="number" min="0" step="25">
+            </label>
+          </div>
+        </section>
+
+        <section class="panel materials-panel detailed-panel flow-step" data-step="pricing">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Materials</p>
+              <h2>Material Pricing</h2>
+            </div>
+            <button class="secondary-button" id="addLine" type="button">Add Line</button>
+          </div>
+
+          <div class="line-card-list" id="lineItemCards"></div>
+          <div class="table-wrap line-table-wrap">
+            <table class="input-table">
+              <thead>
+                <tr>
+                  <th>Area / Service</th>
+                  <th>Description</th>
+                  <th>Material</th>
+                  <th>Quality</th>
+                  <th>Qty</th>
+                  <th>Market / Unit</th>
+                  <th>Other</th>
+                  <th>Savings %</th>
+                  <th>Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="lineItems"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="detail-grid detailed-panel flow-step" data-step="pricing">
+          <section class="panel detail-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Trades & Fees</p>
+                <h2>Subs, Permits, Disposal</h2>
+              </div>
+              <button class="secondary-button" id="addSub" type="button">Add Sub</button>
+            </div>
+            <div class="table-wrap">
+              <table class="input-table">
+                <thead>
+                  <tr>
+                    <th>Trade</th>
+                    <th>Scope</th>
+                    <th>Allowance</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="subItems"></tbody>
+              </table>
+            </div>
+            <div class="labour-grid compact-grid">
+              <label>Permit / drawings allowance
+                <input id="permitCost" type="number" min="0" step="25">
+              </label>
+              <label>Disposal / bin / dump fees
+                <input id="disposalCost" type="number" min="0" step="25">
+              </label>
+              <label>Protection / cleanup materials
+                <input id="protectionCost" type="number" min="0" step="25">
+              </label>
+              <label>Payment processing / misc.
+                <input id="miscCost" type="number" min="0" step="25">
+              </label>
+            </div>
+          </section>
+
+          <section class="panel detail-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Client Terms</p>
+                <h2>Quote Wording</h2>
+              </div>
+            </div>
+            <div class="client-grid">
+              <label>Payment schedule
+                <textarea class="long-textarea" id="paymentSchedule" rows="6"></textarea>
+              </label>
+              <label>Change order terms
+                <textarea class="long-textarea" id="changeOrderTerms" rows="6"></textarea>
+              </label>
+              <label>Warranty terms
+                <textarea class="long-textarea" id="warrantyTerms" rows="6"></textarea>
+              </label>
+              <label>Client-supplied materials terms
+                <textarea class="long-textarea" id="clientMaterialTerms" rows="6"></textarea>
+              </label>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel materials-panel flow-step" data-step="review">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Quote Readiness</p>
+              <h2 id="readinessTitle">Needs Review</h2>
+            </div>
+            <span class="status-pill" id="readinessStatus">Checking</span>
+          </div>
+          <div class="readiness-grid" id="readinessChecklist"></div>
+          <div class="warning-list" id="quoteWarnings"></div>
+        </section>
+
+        <section class="panel materials-panel flow-step" data-step="review">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Change Orders</p>
+              <h2>Approved Extras</h2>
+            </div>
+            <button class="secondary-button" id="addChangeOrder" type="button">Add Change Order</button>
+          </div>
+          <div class="payment-list" id="changeOrderItems"></div>
+        </section>
+
+        <section class="panel archive-panel flow-step" data-step="archive">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Archive</p>
+              <h2>Saved Client Quotes</h2>
+            </div>
+            <div class="archive-actions">
+              <span class="archive-sync-status" id="archiveSyncStatus">Local archive backup active</span>
+              <button class="ghost-button" id="duplicateArchive" type="button">Duplicate</button>
+              <button class="ghost-button" id="loadArchive" type="button">Load</button>
+              <button class="ghost-button" id="deleteArchive" type="button">Delete</button>
+              <button class="ghost-button" id="exportArchive" type="button">Export Backup</button>
+            </div>
+          </div>
+          <div class="archive-tools">
+            <input id="archiveSearch" type="search" placeholder="Search by client, quote number, or project">
+            <select id="archiveStatusFilter" aria-label="Filter archive by status">
+              <option value="">All statuses</option>
+              <option>Draft</option>
+              <option>Submitted</option>
+              <option>Sent</option>
+              <option>Follow-up needed</option>
+              <option>Approved</option>
+              <option>Deposit paid</option>
+              <option>In progress</option>
+              <option>Completed</option>
+              <option>Balance due</option>
+              <option>Declined</option>
+              <option>Paid</option>
+              <option>Cancelled</option>
+            </select>
+            <label class="file-import-button">Restore Backup
+              <input id="importArchive" type="file" accept="application/json">
+            </label>
+          </div>
+          <select class="is-hidden" id="archiveList" aria-label="Saved quote archive"></select>
+          <div class="archive-card-grid" id="archiveCards"></div>
+        </section>
+
+        <section class="totals-band flow-step" data-step="review" aria-label="Quote summary">
+          <div class="detailed-total client-hidden-cost">
+            <span>Direct Cost</span>
+            <strong id="directCost">$0.00</strong>
+          </div>
+          <div class="detailed-total client-hidden-cost">
+            <span>Markup & OH</span>
+            <strong id="markupCost">$0.00</strong>
+          </div>
+          <div class="detailed-total client-hidden-cost">
+            <span>Contingency</span>
+            <strong id="contingencyCost">$0.00</strong>
+          </div>
+          <div class="detailed-total">
+            <span>Tax</span>
+            <strong id="taxCost">$0.00</strong>
+          </div>
+          <div>
+            <span>Total Quote</span>
+            <strong id="totalQuote">$0.00</strong>
+          </div>
+          <div>
+            <span>Initial Deposit (Materials)</span>
+            <strong id="reviewDeposit">$0.00</strong>
+          </div>
+          <div>
+            <span>Balance</span>
+            <strong id="reviewBalance">$0.00</strong>
+          </div>
+          <div class="submit-quote-card">
+            <span>Submit Quote</span>
+            <button class="primary-button" id="submitQuote" type="button">Submit & Archive</button>
+          </div>
+        </section>
+
+        <section class="panel materials-panel flow-step" data-step="materials">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Supplier Materials</p>
+              <h2>Material Catalog</h2>
+            </div>
+            <div class="material-sync-status" id="materialSyncStatus">Checking Supabase...</div>
+          </div>
+
+          <div class="material-catalog-tools">
+            <input id="materialSearch" type="search" placeholder="Search tile, grout, deck block, vanity, drywall...">
+            <select id="materialCategoryFilter" aria-label="Filter material category">
+              <option value="">All categories</option>
+              <option>Tile</option>
+              <option>Waterproofing</option>
+              <option>Drywall</option>
+              <option>Flooring</option>
+              <option>Paint</option>
+              <option>Plumbing</option>
+              <option>Electrical</option>
+              <option>Fasteners</option>
+              <option>Adhesives / Sealants</option>
+              <option>Lumber / Framing</option>
+              <option>Concrete / Masonry</option>
+              <option>Decking / Outdoor</option>
+              <option>Hardware</option>
+              <option>Tools / Equipment</option>
+              <option>Doors / Windows</option>
+              <option>Trim / Millwork</option>
+              <option>Cabinets / Countertops</option>
+              <option>Insulation</option>
+              <option>Roofing / Exterior</option>
+              <option>HVAC / Ventilation</option>
+              <option>Safety / Protection</option>
+              <option>Cleaning / Consumables</option>
+              <option>Disposal</option>
+              <option>Custom</option>
+            </select>
+          </div>
+
+          <details class="manual-material-entry">
+            <summary>Add or update material manually</summary>
+            <div class="screenshot-material-entry">
+              <div class="photo-drop-zone material-screenshot-zone" id="materialScreenshotZone">
+                <input id="materialScreenshotInput" type="file" accept="image/*">
+                <strong>Upload or drag product screenshot here</strong>
+                <span>Drop an image here, then click Extract From Screenshot.</span>
+              </div>
+              <img class="material-screenshot-preview is-hidden" id="materialScreenshotPreview" alt="Product screenshot preview">
+              <textarea id="materialOcrText" rows="5" placeholder="Screenshot text will appear here. You can also paste copied product text from your phone."></textarea>
+              <div class="manual-material-actions">
+                <button class="secondary-button" id="extractMaterialFromImage" type="button">Extract From Screenshot</button>
+                <button class="ghost-button" id="fillMaterialFromText" type="button">Fill Fields From Text</button>
+              </div>
+              <div class="financial-alerts" id="materialOcrStatus"></div>
+            </div>
+            <div class="manual-material-grid">
+              <label>Product name
+                <input id="manualProductName" type="text" placeholder="Example: Schluter Kerdi membrane">
+              </label>
+              <label>Supplier
+                <input id="manualSupplier" type="text" placeholder="Home Depot, RONA, local supplier...">
+              </label>
+              <label>SKU / model
+                <input id="manualSku" type="text" placeholder="SKU or model number">
+              </label>
+              <label>Unit
+                <input id="manualUnit" type="text" placeholder="each, sq ft, bag, sheet...">
+              </label>
+              <label>Last known price
+                <input id="manualPrice" type="number" min="0" step="0.01">
+              </label>
+              <label>Product URL
+                <input id="manualUrl" type="url" placeholder="https://...">
+              </label>
+              <label>Material image
+                <input id="manualImageInput" type="file" accept="image/*">
+              </label>
+              <label>Date added
+                <input id="manualCheckedDate" type="date">
+              </label>
+              <label>Category
+                <select id="manualCategory">
+                  <option>Tile</option>
+                  <option>Waterproofing</option>
+                  <option>Drywall</option>
+                  <option>Flooring</option>
+                  <option>Paint</option>
+                  <option>Plumbing</option>
+                  <option>Electrical</option>
+                  <option>Fasteners</option>
+                  <option>Adhesives / Sealants</option>
+                  <option>Lumber / Framing</option>
+                  <option>Concrete / Masonry</option>
+                  <option>Decking / Outdoor</option>
+                  <option>Hardware</option>
+                  <option>Tools / Equipment</option>
+                  <option>Doors / Windows</option>
+                  <option>Trim / Millwork</option>
+                  <option>Cabinets / Countertops</option>
+                  <option>Insulation</option>
+                  <option>Roofing / Exterior</option>
+                  <option>HVAC / Ventilation</option>
+                  <option>Safety / Protection</option>
+                  <option>Cleaning / Consumables</option>
+                  <option>Disposal</option>
+                  <option>Custom</option>
+                </select>
+              </label>
+            </div>
+            <img class="manual-material-image-preview is-hidden" id="manualImagePreview" alt="Saved material image preview">
+            <div class="manual-material-actions">
+              <button class="secondary-button" id="saveManualMaterial" type="button">Save Material</button>
+              <button class="ghost-button" id="clearManualMaterial" type="button">Clear</button>
+            </div>
+          </details>
+
+          <div class="material-product-grid" id="materialProductList"></div>
+        </section>
+
+        <section class="panel materials-panel flow-step" data-step="dashboard">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Quote Dashboard</p>
+              <h2 id="jobDashboardTitle">Current Quote</h2>
+            </div>
+            <span class="status-pill" id="dashboardStatus">Draft</span>
+          </div>
+
+          <div class="dashboard-job-picker">
+            <label>Active quote
+              <select id="dashboardJobSelect"></select>
+            </label>
+            <button class="ghost-button" id="openDashboardJob" type="button">Open Quote</button>
+            <div class="dashboard-job-preview" id="dashboardJobPreview"></div>
+          </div>
+
+          <div class="active-job-cards" id="activeJobCards"></div>
+
+          <div class="quote-dashboard-card-grid" id="jobDashboardCards"></div>
+
+          <section class="dashboard-reminders">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Reminders</p>
+                <h2>Quote Follow-Ups</h2>
+              </div>
+              <button class="secondary-button" id="createTask" type="button">Create Reminder</button>
+            </div>
+            <div class="timeline-list" id="dashboardReminders"></div>
+            <div id="taskCreateMenu"></div>
+            <div class="ops-list" id="taskItems"></div>
+          </section>
+
+          <div class="dashboard-grid">
+            <section>
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">Notes</p>
+                  <h2>Site Logs</h2>
+                </div>
+                <button class="secondary-button" id="createSiteLog" type="button">Create Note</button>
+              </div>
+              <div id="siteLogCreateMenu"></div>
+              <div class="ops-list" id="siteLogItems"></div>
+            </section>
+
+            <section>
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">Photos</p>
+                  <h2>Photo Tracking</h2>
+                </div>
+              </div>
+              <div class="photo-drop-zone" id="photoDropZone">
+                <input id="photoUploadInput" type="file" accept="image/*" multiple>
+                <strong>Upload or drag photos here</strong>
+                <span>Before, progress, after, damage, receipts, or material photos.</span>
+              </div>
+              <div class="ops-list" id="photoItems"></div>
+            </section>
+          </div>
+        </section>
+
+        <details class="panel profit-panel flow-step" data-step="review">
+          <summary>
+            <span>
+              <span class="eyebrow">Internal</span>
+              <strong>Profit View</strong>
+            </span>
+            <span id="profitSummary">$0.00</span>
+          </summary>
+          <div class="profit-grid">
+            <label> Danny pay rate
+              <input id="dannyPayRate" type="number" min="0" step="1">
+            </label>
+            <label>Julian pay rate
+              <input id="julianPayRate" type="number" min="0" step="1">
+            </label>
+            <div>
+              <span>Company Profit</span>
+              <strong id="internalProfit">$0.00</strong>
+            </div>
+            <div>
+              <span>Profit Margin</span>
+              <strong id="internalMargin">0%</strong>
+            </div>
+            <div>
+              <span>Project Management</span>
+              <strong id="internalProjectManagement">$0.00</strong>
+            </div>
+            <div>
+              <span>Overhead</span>
+              <strong id="internalOverhead">$0.00</strong>
+            </div>
+            <div>
+              <span>Risk Buffer</span>
+              <strong id="internalRisk">$0.00</strong>
+            </div>
+            <div>
+              <span>Pre-Tax Subtotal</span>
+              <strong id="internalSubtotal">$0.00</strong>
+            </div>
+            <div>
+              <span>Danny Pay</span>
+              <strong id="internalDannyPay">$0.00</strong>
+            </div>
+            <div>
+              <span>Julian Pay</span>
+              <strong id="internalJulianPay">$0.00</strong>
+            </div>
+            <div>
+              <span>Owner Pay Total</span>
+              <strong id="internalOwnerPay">$0.00</strong>
+            </div>
+          </div>
+        </details>
+          </div>
+        </section>
+      </section>
+
+      <section class="print-document" id="quoteDocument" aria-label="Printable quote"></section>
+      <section class="print-document service-agreement-document" id="serviceAgreementDocument" aria-label="Printable service agreement"></section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="tesseract.min.js"></script>
+    <script src="data/supplier_catalog.generated.js"></script>
+    <script src="app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(error => {
+            console.warn("Claybourne offline app setup skipped:", error);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
