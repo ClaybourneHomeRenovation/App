@@ -747,6 +747,7 @@ let quoteSuccessText = "";
 const quoteSteps = ["start", "scope", "pricing", "review"];
 let activeAccountingTab = "summary";
 let openLineIndex = null;
+let lineSwipeState = null;
 let materialScreenshotFile = null;
 let editingMaterialId = null;
 let manualMaterialImageDataUrl = "";
@@ -1999,50 +2000,61 @@ function renderLineItems() {
     body?.appendChild(row);
 
     const card = document.createElement("article");
-    card.className = "line-card";
+    card.className = "line-card swipe-line-card";
+    card.dataset.lineCard = index;
     card.innerHTML = `
-      <div class="line-card-summary">
-        <div>
-          <strong>${escapeHTML(line.area || line.description || `Line Item ${index + 1}`)}</strong>
-          <span>${escapeHTML(line.description || "Detailed work item")}</span>
-        </div>
-        <b class="line-total">${money(cost.lineTotal)}</b>
+      <div class="swipe-action swipe-action-delete" aria-hidden="true">
+        <span>×</span>
+        <strong>Delete</strong>
       </div>
-      <details ${openLineIndex === index ? "open" : ""}>
-        <summary>Material Details</summary>
-        <div class="line-card-fields">
-          <label>Area / service
-            <input data-field="area" data-index="${index}" value="${escapeAttr(line.area)}" placeholder="Area">
-          </label>
-          <label>Description
-            <textarea class="short-textarea" data-field="description" data-index="${index}" rows="3" placeholder="Work description">${escapeHTML(line.description)}</textarea>
-          </label>
-          <label>Material
-            <select data-field="material" data-index="${index}">
-              ${Object.keys(materialCatalog).map(name => `<option value="${name}" ${line.material === name ? "selected" : ""}>${name}</option>`).join("")}
-            </select>
-          </label>
-          <label>Quality
-            <select data-field="quality" data-index="${index}">
-              ${Object.keys(qualityMultipliers).map(name => `<option value="${name}" ${line.quality === name ? "selected" : ""}>${name}</option>`).join("")}
-            </select>
-          </label>
-          <label>Quantity
-            <input data-field="qty" data-index="${index}" type="number" min="0" step="0.01" value="${line.qty}">
-          </label>
-          <label>Market / unit
-            <input data-field="marketRate" data-index="${index}" type="number" min="0" step="0.01" value="${line.marketRate}">
-          </label>
-          <label>Other costs
-            <input data-field="other" data-index="${index}" type="number" min="0" step="0.01" value="${line.other}">
-          </label>
-          <label>Savings %
-            <input data-field="savings" data-index="${index}" type="number" min="0" step="0.5" value="${line.savings ?? ""}" placeholder="${state.settings.standardSavingsRate || 0}%">
-          </label>
+      <div class="swipe-action swipe-action-edit" aria-hidden="true">
+        <span>✎</span>
+        <strong>Edit</strong>
+      </div>
+      <div class="line-card-content">
+        <div class="line-card-summary">
+          <div>
+            <strong>${escapeHTML(line.area || line.description || `Line Item ${index + 1}`)}</strong>
+            <span>${escapeHTML(line.description || "Detailed work item")}</span>
+          </div>
+          <b class="line-total">${money(cost.lineTotal)}</b>
         </div>
-        <button class="secondary-button add-line-done-button" type="button" data-close-line="${index}">Add</button>
-        <button class="ghost-button remove-line-button" type="button" data-remove="${index}">Remove Line</button>
-      </details>
+        <details ${openLineIndex === index ? "open" : ""}>
+          <summary>Material Details</summary>
+          <div class="line-card-fields">
+            <label>Area / service
+              <input data-field="area" data-index="${index}" value="${escapeAttr(line.area)}" placeholder="Area">
+            </label>
+            <label>Description
+              <textarea class="short-textarea" data-field="description" data-index="${index}" rows="3" placeholder="Work description">${escapeHTML(line.description)}</textarea>
+            </label>
+            <label>Material
+              <select data-field="material" data-index="${index}">
+                ${Object.keys(materialCatalog).map(name => `<option value="${name}" ${line.material === name ? "selected" : ""}>${name}</option>`).join("")}
+              </select>
+            </label>
+            <label>Quality
+              <select data-field="quality" data-index="${index}">
+                ${Object.keys(qualityMultipliers).map(name => `<option value="${name}" ${line.quality === name ? "selected" : ""}>${name}</option>`).join("")}
+              </select>
+            </label>
+            <label>Quantity
+              <input data-field="qty" data-index="${index}" type="number" min="0" step="0.01" value="${line.qty}">
+            </label>
+            <label>Market / unit
+              <input data-field="marketRate" data-index="${index}" type="number" min="0" step="0.01" value="${line.marketRate}">
+            </label>
+            <label>Other costs
+              <input data-field="other" data-index="${index}" type="number" min="0" step="0.01" value="${line.other}">
+            </label>
+            <label>Savings %
+              <input data-field="savings" data-index="${index}" type="number" min="0" step="0.5" value="${line.savings ?? ""}" placeholder="${state.settings.standardSavingsRate || 0}%">
+            </label>
+          </div>
+          <button class="secondary-button add-line-done-button" type="button" data-close-line="${index}">Add</button>
+          <button class="ghost-button remove-line-button" type="button" data-remove="${index}">Remove Line</button>
+        </details>
+      </div>
     `;
     cards?.appendChild(card);
   });
@@ -3389,6 +3401,81 @@ function scrollToOpenLineItem() {
   });
 }
 
+function resetSwipeCard(card) {
+  const content = card?.querySelector(".line-card-content");
+  if (!content) return;
+  card.classList.remove("is-swiping", "is-swipe-delete", "is-swipe-edit");
+  content.style.transform = "";
+}
+
+function editLineCard(index) {
+  openLineIndex = index;
+  renderLineItems();
+  autoGrowAllTextareas();
+  scrollToOpenLineItem();
+}
+
+function deleteLineCard(index) {
+  if (Number.isNaN(index)) return;
+  state.lines.splice(index, 1);
+  openLineIndex = null;
+  state.meta.dirty = true;
+  render();
+}
+
+function handleLineCardSwipeStart(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  if (!event.target.closest(".line-card-summary")) return;
+  const card = event.target.closest(".swipe-line-card");
+  const content = card?.querySelector(".line-card-content");
+  if (!card || !content) return;
+  lineSwipeState = {
+    card,
+    content,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    deltaX: 0,
+    active: true
+  };
+  card.classList.add("is-swiping");
+  card.setPointerCapture?.(event.pointerId);
+}
+
+function handleLineCardSwipeMove(event) {
+  if (!lineSwipeState?.active || event.pointerId !== lineSwipeState.pointerId) return;
+  const deltaX = event.clientX - lineSwipeState.startX;
+  const deltaY = event.clientY - lineSwipeState.startY;
+  if (Math.abs(deltaY) > 34 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetSwipeCard(lineSwipeState.card);
+    lineSwipeState = null;
+    return;
+  }
+  const limitedX = Math.max(-118, Math.min(118, deltaX));
+  lineSwipeState.deltaX = limitedX;
+  lineSwipeState.content.style.transform = `translateX(${limitedX}px)`;
+  lineSwipeState.card.classList.toggle("is-swipe-delete", limitedX > 28);
+  lineSwipeState.card.classList.toggle("is-swipe-edit", limitedX < -28);
+  if (Math.abs(limitedX) > 8) event.preventDefault();
+}
+
+function handleLineCardSwipeEnd(event) {
+  if (!lineSwipeState?.active || event.pointerId !== lineSwipeState.pointerId) return;
+  const { card, deltaX } = lineSwipeState;
+  const index = Number(card.dataset.lineCard);
+  lineSwipeState = null;
+  if (deltaX > 78) {
+    deleteLineCard(index);
+    return;
+  }
+  if (deltaX < -78) {
+    resetSwipeCard(card);
+    editLineCard(index);
+    return;
+  }
+  resetSwipeCard(card);
+}
+
 function render() {
   populateMaterialCategorySelects();
   syncControls();
@@ -4086,6 +4173,10 @@ function bindEvents() {
   });
   document.getElementById("lineItemCards")?.addEventListener("input", handleLineEdit);
   document.getElementById("lineItemCards")?.addEventListener("change", handleLineEdit);
+  document.getElementById("lineItemCards")?.addEventListener("pointerdown", handleLineCardSwipeStart);
+  document.getElementById("lineItemCards")?.addEventListener("pointermove", handleLineCardSwipeMove);
+  document.getElementById("lineItemCards")?.addEventListener("pointerup", handleLineCardSwipeEnd);
+  document.getElementById("lineItemCards")?.addEventListener("pointercancel", handleLineCardSwipeEnd);
   document.getElementById("lineItemCards")?.addEventListener("click", event => {
     const closeIndex = event.target.dataset.closeLine;
     if (closeIndex !== undefined) {

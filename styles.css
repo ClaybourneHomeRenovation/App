@@ -995,6 +995,67 @@ label small {
 .line-card {
   padding: 0;
   overflow: hidden;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.line-card-content {
+  position: relative;
+  z-index: 2;
+  background: #fff;
+  transition: transform .18s ease;
+}
+
+.line-card.is-swiping .line-card-content {
+  transition: none;
+}
+
+.swipe-action {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .14s ease;
+}
+
+.swipe-action span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, .85);
+  border-radius: 50%;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.swipe-action strong {
+  font-size: .8rem;
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+
+.swipe-action-delete {
+  justify-content: flex-start;
+  background: #8b4339;
+}
+
+.swipe-action-edit {
+  justify-content: flex-end;
+  background: #4f735b;
+}
+
+.line-card.is-swipe-delete .swipe-action-delete,
+.line-card.is-swipe-edit .swipe-action-edit {
+  opacity: 1;
 }
 
 .line-card-summary {
