@@ -3296,7 +3296,10 @@ function renderFlow() {
   const mainSection = ["dashboard", "archive", "materials"].includes(activeStep) ? activeStep : "quote";
   const visibleStep = mainSection === "quote" ? activeStep : mainSection;
   document.querySelectorAll(".flow-step").forEach(section => {
-    section.classList.toggle("is-step-hidden", section.dataset.step !== visibleStep);
+    const shouldHide = section.dataset.step !== visibleStep;
+    section.classList.toggle("is-step-hidden", shouldHide);
+    section.hidden = shouldHide;
+    section.style.display = shouldHide ? "none" : "";
   });
   document.querySelectorAll("[data-go-step]").forEach(button => {
     const isActive = button.dataset.goStep === activeStep && mainSection === "quote";
@@ -3316,8 +3319,18 @@ function renderFlow() {
       button.removeAttribute("aria-current");
     }
   });
-  document.querySelector(".quote-flow-nav")?.classList.toggle("is-step-hidden", mainSection !== "quote");
-  document.querySelector(".quote-builder-actions")?.classList.toggle("is-step-hidden", mainSection !== "quote");
+  const quoteNav = document.querySelector(".quote-flow-nav");
+  if (quoteNav) {
+    quoteNav.classList.toggle("is-step-hidden", mainSection !== "quote");
+    quoteNav.hidden = mainSection !== "quote";
+    quoteNav.style.display = mainSection !== "quote" ? "none" : "";
+  }
+  const quoteActions = document.querySelector(".quote-builder-actions");
+  if (quoteActions) {
+    quoteActions.classList.toggle("is-step-hidden", mainSection !== "quote");
+    quoteActions.hidden = mainSection !== "quote";
+    quoteActions.style.display = mainSection !== "quote" ? "none" : "";
+  }
   document.querySelector(".builder-grid")?.classList.toggle("start-only", activeStep === "start");
   document.querySelector(".builder-grid")?.classList.remove("is-step-hidden");
 }
