@@ -766,6 +766,7 @@ let activeAccountingTab = "summary";
 let openLineIndex = null;
 let lineSwipeState = null;
 let lineTouchSwipeState = null;
+let dashboardQuoteSwipeState = null;
 let materialScreenshotFile = null;
 let editingMaterialId = null;
 let manualMaterialImageDataUrl = "";
@@ -2878,12 +2879,15 @@ function renderJobDashboard() {
   const cards = document.getElementById("jobDashboardCards");
   if (!title || !status || !cards) return;
   const a = accountingBreakdown();
-  title.textContent = state.project.clientName || "Current Quote";
+  const quoteName = state.project.clientName || "Current Quote";
+  const quoteType = state.project.projectType || "Project Quote";
+  title.textContent = quoteName;
   status.textContent = state.project.jobStatus || "Draft";
   cards.innerHTML = `
-    <div><span>Total Quote</span><strong>${money(a.totalQuote)}</strong><small>Client package value</small></div>
-    <div><span>Initial Deposit (Materials)</span><strong>${money(a.materialDeposit)}</strong><small>Total material cost due upfront</small></div>
-    <div><span>Balance Due</span><strong>${money(a.balance)}</strong><small>Remaining quote balance</small></div>
+    <div class="quote-context-card"><span>Selected Quote</span><strong>${escapeHTML(quoteName)}</strong><small>${escapeHTML(quoteType)}${state.project.projectAddress ? ` | ${escapeHTML(state.project.projectAddress)}` : ""}</small></div>
+    <div><span>Total Quote</span><strong>${money(a.totalQuote)}</strong><small>For ${escapeHTML(quoteName)}</small></div>
+    <div><span>Initial Deposit</span><strong>${money(a.materialDeposit)}</strong><small>Materials due upfront</small></div>
+    <div><span>Balance Due</span><strong>${money(a.balance)}</strong><small>Remaining for this quote</small></div>
     <div><span>Valid Until</span><strong>${escapeHTML(state.settings.validUntil || "Not set")}</strong><small>Quote expiry date</small></div>
   `;
   renderDashboardJobSelect();
@@ -3045,13 +3049,22 @@ function activeJobCard(entry, isCurrent = false) {
   const type = project.projectType || entry.projectType || "Project";
   const id = isCurrent ? "__current__" : entry.id;
   return `
-    <button class="active-job-card ${isCurrent ? "is-current" : ""}" type="button" data-open-dashboard-job="${escapeAttr(id)}">
-      <span>${escapeHTML(status)}</span>
-      <strong>${escapeHTML(client)}</strong>
-      <small>${escapeHTML(type)}${address ? ` | ${escapeHTML(address)}` : ""}</small>
-      <b>${money(total)}</b>
-      <em>Valid until ${escapeHTML(settings.validUntil || state.settings.validUntil || "not set")}</em>
-    </button>
+    <article class="dashboard-quote-swipe-card ${isCurrent ? "is-current" : ""}" data-dashboard-quote-card="${escapeAttr(id)}">
+      <div class="swipe-action swipe-action-delete" aria-hidden="true">
+        <span>×</span>
+        <strong>Delete</strong>
+      </div>
+      <div class="swipe-action swipe-action-edit" aria-hidden="true">
+        <span>✎</span>
+        <strong>Edit</strong>
+      </div>
+      <button class="active-job-card dashboard-quote-card-content ${isCurrent ? "is-current" : ""}" type="button" data-open-dashboard-job="${escapeAttr(id)}">
+        <span>${escapeHTML(status)}</span>
+        <strong>${escapeHTML(client)}</strong>
+        <small>${escapeHTML(type)}${address ? ` | ${escapeHTML(address)}` : ""}</small>
+        <b>${money(total)}</b>
+      </button>
+    </article>
   `;
 }
 
@@ -3097,7 +3110,7 @@ function openDashboardJob() {
   if (!id || id === "__current__" || id === state.meta.archiveId) return;
   if (state.meta.dirty) archiveCurrentQuote(state.project.jobStatus || "Draft");
   loadArchivedQuote(id);
-  activeStep = "dashboard";
+  activeStep = "start";
   renderFlow();
 }
 
@@ -3551,6 +3564,135 @@ function handleLineCardTouchEnd() {
     return;
   }
   resetSwipeCard(card);
+}
+
+function resetDashboardQuoteSwipe(card) {
+  const content = card?.querySelector(".dashboard-quote-card-content");
+  if (!content) return;
+  card.classList.remove("is-swiping", "is-swipe-delete", "is-swipe-edit");
+  content.style.transform = "";
+}
+
+function openDashboardQuoteById(id) {
+  if (!id) return;
+  if (id === "__current__") {
+    activeStep = "start";
+    renderFlow();
+    return;
+  }
+  const select = document.getElementById("dashboardJobSelect");
+  if (select) select.value = id;
+  openDashboardJob();
+}
+
+function deleteDashboardQuoteById(id) {
+  if (!id || id === "__current__") return;
+  deleteArchivedQuote(id);
+  renderJobDashboard();
+}
+
+function handleDashboardQuoteSwipeStart(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const card = event.target.closest(".dashboard-quote-swipe-card");
+  const content = card?.querySelector(".dashboard-quote-card-content");
+  if (!card || !content) return;
+  dashboardQuoteSwipeState = {
+    card,
+    content,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    deltaX: 0,
+    active: true
+  };
+  card.classList.add("is-swiping");
+  card.setPointerCapture?.(event.pointerId);
+}
+
+function handleDashboardQuoteSwipeMove(event) {
+  if (!dashboardQuoteSwipeState?.active || event.pointerId !== dashboardQuoteSwipeState.pointerId) return;
+  const deltaX = event.clientX - dashboardQuoteSwipeState.startX;
+  const deltaY = event.clientY - dashboardQuoteSwipeState.startY;
+  if (Math.abs(deltaY) > 34 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetDashboardQuoteSwipe(dashboardQuoteSwipeState.card);
+    dashboardQuoteSwipeState = null;
+    return;
+  }
+  const limitedX = Math.max(-118, Math.min(118, deltaX));
+  dashboardQuoteSwipeState.deltaX = limitedX;
+  dashboardQuoteSwipeState.content.style.transform = `translateX(${limitedX}px)`;
+  dashboardQuoteSwipeState.card.classList.toggle("is-swipe-delete", limitedX > 28);
+  dashboardQuoteSwipeState.card.classList.toggle("is-swipe-edit", limitedX < -28);
+  if (Math.abs(limitedX) > 8) event.preventDefault();
+}
+
+function handleDashboardQuoteSwipeEnd(event) {
+  if (!dashboardQuoteSwipeState?.active || event.pointerId !== dashboardQuoteSwipeState.pointerId) return;
+  const { card, deltaX } = dashboardQuoteSwipeState;
+  const id = card.dataset.dashboardQuoteCard;
+  dashboardQuoteSwipeState = null;
+  if (deltaX > 78) {
+    deleteDashboardQuoteById(id);
+    return;
+  }
+  if (deltaX < -78) {
+    resetDashboardQuoteSwipe(card);
+    openDashboardQuoteById(id);
+    return;
+  }
+  resetDashboardQuoteSwipe(card);
+}
+
+function handleDashboardQuoteTouchStart(event) {
+  if (event.touches?.length !== 1) return;
+  const card = event.target.closest(".dashboard-quote-swipe-card");
+  const content = card?.querySelector(".dashboard-quote-card-content");
+  if (!card || !content) return;
+  const touch = event.touches[0];
+  dashboardQuoteSwipeState = {
+    card,
+    content,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    deltaX: 0,
+    active: true
+  };
+  card.classList.add("is-swiping");
+}
+
+function handleDashboardQuoteTouchMove(event) {
+  if (!dashboardQuoteSwipeState?.active || event.touches?.length !== 1) return;
+  const touch = event.touches[0];
+  const deltaX = touch.clientX - dashboardQuoteSwipeState.startX;
+  const deltaY = touch.clientY - dashboardQuoteSwipeState.startY;
+  if (Math.abs(deltaY) > 34 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetDashboardQuoteSwipe(dashboardQuoteSwipeState.card);
+    dashboardQuoteSwipeState = null;
+    return;
+  }
+  const limitedX = Math.max(-118, Math.min(118, deltaX));
+  dashboardQuoteSwipeState.deltaX = limitedX;
+  dashboardQuoteSwipeState.content.style.transform = `translateX(${limitedX}px)`;
+  dashboardQuoteSwipeState.card.classList.toggle("is-swipe-delete", limitedX > 28);
+  dashboardQuoteSwipeState.card.classList.toggle("is-swipe-edit", limitedX < -28);
+  if (Math.abs(limitedX) > 8) event.preventDefault();
+}
+
+function handleDashboardQuoteTouchEnd() {
+  if (!dashboardQuoteSwipeState?.active) return;
+  const { card, deltaX } = dashboardQuoteSwipeState;
+  const id = card.dataset.dashboardQuoteCard;
+  dashboardQuoteSwipeState = null;
+  if (deltaX > 78) {
+    deleteDashboardQuoteById(id);
+    return;
+  }
+  if (deltaX < -78) {
+    resetDashboardQuoteSwipe(card);
+    openDashboardQuoteById(id);
+    return;
+  }
+  resetDashboardQuoteSwipe(card);
 }
 
 function render() {
@@ -4346,12 +4488,17 @@ function bindEvents() {
   document.getElementById("importArchive")?.addEventListener("change", importArchiveBackup);
   document.getElementById("openDashboardJob")?.addEventListener("click", openDashboardJob);
   document.getElementById("dashboardJobSelect")?.addEventListener("change", renderDashboardJobPreview);
+  document.getElementById("activeJobCards")?.addEventListener("pointerdown", handleDashboardQuoteSwipeStart);
+  document.getElementById("activeJobCards")?.addEventListener("pointermove", handleDashboardQuoteSwipeMove);
+  document.getElementById("activeJobCards")?.addEventListener("pointerup", handleDashboardQuoteSwipeEnd);
+  document.getElementById("activeJobCards")?.addEventListener("pointercancel", handleDashboardQuoteSwipeEnd);
+  document.getElementById("activeJobCards")?.addEventListener("touchstart", handleDashboardQuoteTouchStart, { passive: true });
+  document.getElementById("activeJobCards")?.addEventListener("touchmove", handleDashboardQuoteTouchMove, { passive: false });
+  document.getElementById("activeJobCards")?.addEventListener("touchend", handleDashboardQuoteTouchEnd);
+  document.getElementById("activeJobCards")?.addEventListener("touchcancel", handleDashboardQuoteTouchEnd);
   document.getElementById("activeJobCards")?.addEventListener("click", event => {
     const id = event.target.closest("[data-open-dashboard-job]")?.dataset.openDashboardJob;
-    if (!id || id === "__current__") return;
-    const select = document.getElementById("dashboardJobSelect");
-    if (select) select.value = id;
-    openDashboardJob();
+    openDashboardQuoteById(id);
   });
 
   document.getElementById("resetSample").addEventListener("click", () => {

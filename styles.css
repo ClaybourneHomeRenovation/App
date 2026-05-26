@@ -1435,21 +1435,49 @@ label small {
 
 .active-job-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
   margin-bottom: 18px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .active-job-card {
   display: grid;
-  gap: 4px;
-  min-height: 112px;
-  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  min-height: 78px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--gold);
   border-radius: 8px;
   background: #fff;
   text-align: left;
+}
+
+.dashboard-quote-swipe-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.dashboard-quote-card-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  transition: transform .18s ease;
+}
+
+.dashboard-quote-swipe-card.is-swiping .dashboard-quote-card-content {
+  transition: none;
+}
+
+.dashboard-quote-swipe-card.is-swipe-delete .swipe-action-delete,
+.dashboard-quote-swipe-card.is-swipe-edit .swipe-action-edit {
+  opacity: 1;
 }
 
 .active-job-card.is-current {
@@ -1459,8 +1487,15 @@ label small {
 }
 
 .active-job-card b {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-self: center;
   color: var(--gold);
   font-size: 1rem;
+}
+
+.quote-context-card {
+  grid-column: 1 / -1;
 }
 
 .dashboard-reminders {
