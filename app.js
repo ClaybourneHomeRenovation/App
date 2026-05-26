@@ -3319,7 +3319,7 @@ function renderFlow() {
   document.querySelector(".quote-flow-nav")?.classList.toggle("is-step-hidden", mainSection !== "quote");
   document.querySelector(".quote-builder-actions")?.classList.toggle("is-step-hidden", mainSection !== "quote");
   document.querySelector(".builder-grid")?.classList.toggle("start-only", activeStep === "start");
-  document.querySelector(".builder-grid")?.classList.toggle("is-step-hidden", !["start", "pricing"].includes(activeStep));
+  document.querySelector(".builder-grid")?.classList.remove("is-step-hidden");
 }
 
 function jumpToIssue(step, selector) {
