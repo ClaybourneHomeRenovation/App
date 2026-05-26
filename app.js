@@ -438,6 +438,21 @@ function archiveDedupKey(entry) {
   ].join("|");
 }
 
+function deletedArchiveIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(deletedArchiveKey)) || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDeletedArchive(id) {
+  if (!id) return;
+  const ids = deletedArchiveIds();
+  ids.add(id);
+  localStorage.setItem(deletedArchiveKey, JSON.stringify([...ids].slice(-500)));
+}
+
 function dedupeArchiveEntries(entries) {
   const byKey = new Map();
   entries.forEach(entry => {
@@ -569,7 +584,8 @@ async function syncArchiveFromSupabase() {
       .select("*")
       .order("saved_at", { ascending: false });
     if (error) throw error;
-    const cloudEntries = (data || []).map(supabaseArchiveToLocal);
+    const deletedIds = deletedArchiveIds();
+    const cloudEntries = (data || []).map(supabaseArchiveToLocal).filter(entry => !deletedIds.has(entry.id));
     const localEntries = archiveEntries();
     const cloudKeys = new Set(cloudEntries.map(archiveDedupKey));
     const localOnly = localEntries.filter(entry => !cloudEntries.some(cloud => cloud.id === entry.id) && !cloudKeys.has(archiveDedupKey(entry)));
@@ -741,6 +757,7 @@ const costIds = ["prepHours", "travelHours", "pickupHours", "cleanupHours", "adm
 const quickIds = ["quickWorkers", "quickDays", "quickHoursPerDay", "quickMaterialCost", "quickOtherCost", "quickRiskLevel"];
 const currency = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
 const archiveKey = "claybourneQuoteArchive";
+const deletedArchiveKey = "claybourneDeletedQuoteArchiveIds";
 let activeStep = "start";
 let saveStatusTimer;
 let quoteSuccessText = "";
@@ -748,6 +765,7 @@ const quoteSteps = ["start", "scope", "pricing", "review"];
 let activeAccountingTab = "summary";
 let openLineIndex = null;
 let lineSwipeState = null;
+let lineTouchSwipeState = null;
 let materialScreenshotFile = null;
 let editingMaterialId = null;
 let manualMaterialImageDataUrl = "";
@@ -1163,6 +1181,11 @@ function saveState() {
   localStorage.setItem("claybourneQuoteBuilder", JSON.stringify(state));
   renderSaveStatus();
   scheduleActiveQuoteSync();
+}
+
+function saveStateNow() {
+  saveState();
+  saveActiveQuoteToSupabase();
 }
 
 function stateSnapshot() {
@@ -1603,8 +1626,8 @@ async function extractMaterialFromScreenshot() {
   if (status) status.innerHTML = `<div>Reading screenshot. This can take a moment...</div>`;
   try {
     const result = await window.Tesseract.recognize(file, "eng", {
-      workerPath: "tesseract-worker.min.js",
-      corePath: "tesseract-core/tesseract-core-simd-lstm.js",
+      workerPath: "./tesseract-worker.min.js",
+      corePath: "./tesseract-core/tesseract-core-simd-lstm.js",
       langPath: "https://tessdata.projectnaptha.com/4.0.0",
       logger: progress => {
         if (status && progress.status) {
@@ -1729,6 +1752,7 @@ function loadArchivedQuote(id) {
 
 function deleteArchivedQuote(id) {
   if (!id) return;
+  rememberDeletedArchive(id);
   saveArchiveEntries(archiveEntries().filter(entry => entry.id !== id));
   deleteArchiveRecordFromSupabase(id);
   if (state.meta.archiveId === id) state.meta.archiveId = "";
@@ -3476,6 +3500,59 @@ function handleLineCardSwipeEnd(event) {
   resetSwipeCard(card);
 }
 
+function handleLineCardTouchStart(event) {
+  if (event.touches?.length !== 1) return;
+  if (!event.target.closest(".line-card-summary")) return;
+  const card = event.target.closest(".swipe-line-card");
+  const content = card?.querySelector(".line-card-content");
+  if (!card || !content) return;
+  const touch = event.touches[0];
+  lineTouchSwipeState = {
+    card,
+    content,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    deltaX: 0,
+    active: true
+  };
+  card.classList.add("is-swiping");
+}
+
+function handleLineCardTouchMove(event) {
+  if (!lineTouchSwipeState?.active || event.touches?.length !== 1) return;
+  const touch = event.touches[0];
+  const deltaX = touch.clientX - lineTouchSwipeState.startX;
+  const deltaY = touch.clientY - lineTouchSwipeState.startY;
+  if (Math.abs(deltaY) > 34 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetSwipeCard(lineTouchSwipeState.card);
+    lineTouchSwipeState = null;
+    return;
+  }
+  const limitedX = Math.max(-118, Math.min(118, deltaX));
+  lineTouchSwipeState.deltaX = limitedX;
+  lineTouchSwipeState.content.style.transform = `translateX(${limitedX}px)`;
+  lineTouchSwipeState.card.classList.toggle("is-swipe-delete", limitedX > 28);
+  lineTouchSwipeState.card.classList.toggle("is-swipe-edit", limitedX < -28);
+  if (Math.abs(limitedX) > 8) event.preventDefault();
+}
+
+function handleLineCardTouchEnd() {
+  if (!lineTouchSwipeState?.active) return;
+  const { card, deltaX } = lineTouchSwipeState;
+  const index = Number(card.dataset.lineCard);
+  lineTouchSwipeState = null;
+  if (deltaX > 78) {
+    deleteLineCard(index);
+    return;
+  }
+  if (deltaX < -78) {
+    resetSwipeCard(card);
+    editLineCard(index);
+    return;
+  }
+  resetSwipeCard(card);
+}
+
 function render() {
   populateMaterialCategorySelects();
   syncControls();
@@ -4177,6 +4254,10 @@ function bindEvents() {
   document.getElementById("lineItemCards")?.addEventListener("pointermove", handleLineCardSwipeMove);
   document.getElementById("lineItemCards")?.addEventListener("pointerup", handleLineCardSwipeEnd);
   document.getElementById("lineItemCards")?.addEventListener("pointercancel", handleLineCardSwipeEnd);
+  document.getElementById("lineItemCards")?.addEventListener("touchstart", handleLineCardTouchStart, { passive: true });
+  document.getElementById("lineItemCards")?.addEventListener("touchmove", handleLineCardTouchMove, { passive: false });
+  document.getElementById("lineItemCards")?.addEventListener("touchend", handleLineCardTouchEnd);
+  document.getElementById("lineItemCards")?.addEventListener("touchcancel", handleLineCardTouchEnd);
   document.getElementById("lineItemCards")?.addEventListener("click", event => {
     const closeIndex = event.target.dataset.closeLine;
     if (closeIndex !== undefined) {
@@ -4361,6 +4442,7 @@ function bindEvents() {
       state.tasks.splice(Number(index), 1);
       state.meta.dirty = true;
       render();
+      saveStateNow();
       return;
     }
     const unsilence = event.target.dataset.unsilenceTask;
@@ -4369,7 +4451,7 @@ function bindEvents() {
     state.tasks[Number(unsilence)].silenced = false;
     state.meta.dirty = true;
     renderJobDashboard();
-    saveState();
+    saveStateNow();
   });
 
   document.getElementById("dashboardReminders")?.addEventListener("click", event => {
@@ -4380,20 +4462,20 @@ function bindEvents() {
       state.tasks[Number(snoozeIndex)].snoozedUntil = futureISO(1);
       state.meta.dirty = true;
       renderJobDashboard();
-      saveState();
+      saveStateNow();
     }
     if (silenceIndex !== undefined) {
       state.tasks[Number(silenceIndex)].silenced = true;
       state.meta.dirty = true;
       renderJobDashboard();
-      saveState();
+      saveStateNow();
     }
     if (endIndex !== undefined) {
       state.tasks[Number(endIndex)].status = "Complete";
       state.tasks[Number(endIndex)].silenced = true;
       state.meta.dirty = true;
       renderJobDashboard();
-      saveState();
+      saveStateNow();
     }
   });
 
@@ -4414,6 +4496,7 @@ function bindEvents() {
     state.jobMaterials.splice(Number(index), 1);
     state.meta.dirty = true;
     render();
+    saveStateNow();
   });
 
   document.getElementById("createSiteLog")?.addEventListener("click", () => {
@@ -4433,6 +4516,7 @@ function bindEvents() {
     state.siteLogs.splice(Number(index), 1);
     state.meta.dirty = true;
     render();
+    saveStateNow();
   });
 
   document.getElementById("createCommunication")?.addEventListener("click", () => {
@@ -4451,6 +4535,7 @@ function bindEvents() {
     state.communications.splice(Number(index), 1);
     state.meta.dirty = true;
     render();
+    saveStateNow();
   });
 
   document.getElementById("photoDropZone")?.addEventListener("click", () => document.getElementById("photoUploadInput")?.click());
@@ -4479,6 +4564,7 @@ function bindEvents() {
     state.photos.splice(Number(index), 1);
     state.meta.dirty = true;
     render();
+    saveStateNow();
   });
 
   document.getElementById("closeoutItems")?.addEventListener("change", event => {
@@ -4486,7 +4572,7 @@ function bindEvents() {
     if (Number.isNaN(index)) return;
     state.closeout[index].done = event.target.checked;
     state.meta.dirty = true;
-    saveState();
+    saveStateNow();
   });
 
   document.addEventListener("click", handleDashboardOutsideClick);
