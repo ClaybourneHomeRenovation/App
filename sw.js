@@ -1,4 +1,4 @@
-const CACHE_NAME = "claybourne-quote-builder-v4";
+const CACHE_NAME = "claybourne-quote-builder-v6";
 
 const APP_SHELL = [
   "./",
@@ -51,11 +51,35 @@ self.addEventListener("activate", event => {
   );
 });
 
+self.addEventListener("message", event => {
+  if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", event => {
   const { request } = event;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.hostname.includes("supabase.co")) return;
+
+  const shouldCheckNetworkFirst =
+    request.mode === "navigate"
+    || url.pathname.endsWith("/")
+    || url.pathname.endsWith(".html")
+    || url.pathname.endsWith(".css")
+    || url.pathname.endsWith(".js")
+    || url.pathname.endsWith(".webmanifest");
+
+  if (shouldCheckNetworkFirst) {
+    event.respondWith(
+      fetch(request, { cache: "no-store" }).then(response => {
+        if (!response || response.status !== 200 || response.type === "opaque") return response;
+        const responseCopy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, responseCopy));
+        return response;
+      }).catch(() => caches.match(request).then(cached => cached || caches.match("./index.html")))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(request).then(cached => {

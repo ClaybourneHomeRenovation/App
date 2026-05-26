@@ -841,8 +841,24 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("./sw.js").catch(error => {
+          navigator.serviceWorker.register("./sw.js?v=6").then(registration => {
+            registration.update();
+            registration.addEventListener("updatefound", () => {
+              const worker = registration.installing;
+              if (!worker) return;
+              worker.addEventListener("statechange", () => {
+                if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                  worker.postMessage("SKIP_WAITING");
+                }
+              });
+            });
+          }).catch(error => {
             console.warn("Claybourne offline app setup skipped:", error);
+          });
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (sessionStorage.getItem("claybourne-sw-refresh") === "done") return;
+            sessionStorage.setItem("claybourne-sw-refresh", "done");
+            window.location.reload();
           });
         });
       }
