@@ -4693,6 +4693,14 @@ textarea {
   }
 }
 
+.is-step-hidden,
+.flow-step.is-step-hidden,
+.builder-grid.is-step-hidden,
+.quote-flow-nav.is-step-hidden,
+.quote-builder-actions.is-step-hidden {
+  display: none !important;
+}
+
 @media print {
   @page {
     size: letter;
