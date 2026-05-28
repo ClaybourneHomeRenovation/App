@@ -1,4 +1,4 @@
-const CACHE_NAME = "claybourne-quote-builder-v23";
+const CACHE_NAME = "claybourne-quote-builder-v24";
 
 const APP_SHELL = [
   "./",

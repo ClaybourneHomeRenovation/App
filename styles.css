@@ -5085,10 +5085,10 @@ textarea.short-textarea,
     display: block !important;
     width: 8.5in !important;
     max-width: none !important;
-    height: 10.92in !important;
+    height: 10.62in !important;
     min-height: 0 !important;
     margin: 0 !important;
-    padding: .5in .52in .5in !important;
+    padding: .42in .48in .36in !important;
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -5103,19 +5103,14 @@ textarea.short-textarea,
   }
 
   .quote-page::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -.08in;
-    height: .1in;
-    background: var(--paper);
+    display: none !important;
+    content: none !important;
   }
 
   .cover-page {
-    height: 10.92in !important;
+    height: 10.62in !important;
     min-height: 0 !important;
-    padding: .62in .55in .18in !important;
+    padding: .5in .55in .22in !important;
     overflow: hidden !important;
   }
 
@@ -5126,9 +5121,9 @@ textarea.short-textarea,
   .service-print-page {
     width: 8.5in !important;
     max-width: none !important;
-    height: 10.92in !important;
+    height: 10.62in !important;
     margin: 0 !important;
-    padding: .42in .5in .38in !important;
+    padding: .34in .46in .32in !important;
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -5143,18 +5138,18 @@ textarea.short-textarea,
   }
 
   .service-print-page .service-bar {
-    margin: .09in 0 .08in !important;
-    padding: .06in .1in !important;
+    margin: .075in 0 .065in !important;
+    padding: .05in .09in !important;
   }
 
   .service-print-page .service-form-grid {
     column-gap: .22in !important;
-    row-gap: .065in !important;
-    margin-bottom: .12in !important;
+    row-gap: .055in !important;
+    margin-bottom: .1in !important;
   }
 
   .service-print-page .service-section-grid {
-    gap: .08in !important;
+    gap: .07in !important;
   }
 
   .service-print-page .service-field {
