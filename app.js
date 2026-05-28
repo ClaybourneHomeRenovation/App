@@ -3010,7 +3010,7 @@ function toggleDashboardTrackingEnabled(enabled) {
   ["createTask", "createSiteLog"].forEach(id => {
     const button = document.getElementById(id);
     if (!button) return;
-    button.disabled = !enabled;
+    button.disabled = false;
     button.title = enabled ? "" : "Open a submitted or active archived job first.";
   });
   const photoDrop = document.getElementById("photoDropZone");
@@ -3018,6 +3018,17 @@ function toggleDashboardTrackingEnabled(enabled) {
     photoDrop.classList.toggle("is-disabled", !enabled);
     photoDrop.setAttribute("aria-disabled", String(!enabled));
   }
+}
+
+function requireDashboardJobForAction() {
+  if (isDashboardJobLoaded()) return true;
+  const entries = activeJobEntries();
+  if (!entries.length) {
+    window.alert("Submit and archive a quote first. The dashboard only tracks submitted or active jobs.");
+    return false;
+  }
+  window.alert("Open one of the submitted jobs on the dashboard first, then add reminders, notes, or photos.");
+  return false;
 }
 
 function renderTaskDraftMenu() {
@@ -4686,7 +4697,7 @@ function bindEvents() {
   });
 
   document.getElementById("createTask")?.addEventListener("click", () => {
-    if (!isDashboardJobLoaded()) return;
+    if (!requireDashboardJobForAction()) return;
     dashboardDrafts.task = defaultTask();
     renderTaskDraftMenu();
     autoGrowAllTextareas();
@@ -4753,7 +4764,7 @@ function bindEvents() {
   });
 
   document.getElementById("createJobMaterial")?.addEventListener("click", () => {
-    if (!isDashboardJobLoaded()) return;
+    if (!requireDashboardJobForAction()) return;
     dashboardDrafts.material = defaultJobMaterial();
     renderMaterialDraftMenu();
     autoGrowAllTextareas();
@@ -4774,7 +4785,7 @@ function bindEvents() {
   });
 
   document.getElementById("createSiteLog")?.addEventListener("click", () => {
-    if (!isDashboardJobLoaded()) return;
+    if (!requireDashboardJobForAction()) return;
     dashboardDrafts.siteLog = defaultSiteLog();
     renderSiteLogDraftMenu();
     autoGrowAllTextareas();
@@ -4795,7 +4806,7 @@ function bindEvents() {
   });
 
   document.getElementById("createCommunication")?.addEventListener("click", () => {
-    if (!isDashboardJobLoaded()) return;
+    if (!requireDashboardJobForAction()) return;
     dashboardDrafts.communication = defaultCommunication();
     renderCommunicationDraftMenu();
   });
@@ -4815,7 +4826,7 @@ function bindEvents() {
   });
 
   document.getElementById("photoDropZone")?.addEventListener("click", () => {
-    if (!isDashboardJobLoaded()) return;
+    if (!requireDashboardJobForAction()) return;
     document.getElementById("photoUploadInput")?.click();
   });
   document.getElementById("photoUploadInput")?.addEventListener("change", event => {
