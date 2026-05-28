@@ -1,4 +1,4 @@
-const CACHE_NAME = "claybourne-quote-builder-v15";
+const CACHE_NAME = "claybourne-quote-builder-v22";
 
 const APP_SHELL = [
   "./",
@@ -9,14 +9,6 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./data/supplier_catalog.generated.js",
   "./pdf-lib.min.js",
-  "./tesseract.min.js",
-  "./tesseract-worker.min.js",
-  "./tesseract-core/tesseract-core-lstm.js",
-  "./tesseract-core/tesseract-core-lstm.wasm",
-  "./tesseract-core/tesseract-core-lstm.wasm.js",
-  "./tesseract-core/tesseract-core-simd-lstm.js",
-  "./tesseract-core/tesseract-core-simd-lstm.wasm",
-  "./tesseract-core/tesseract-core-simd-lstm.wasm.js",
   "./24f3232d-c8cd-479a-9e2b-b5e3a6f63e42.png",
   "./claybourne_quote_docx_header.png",
   "./service-agreement-data.js",
@@ -32,6 +24,8 @@ const APP_SHELL = [
   "./service-agreement-pages/page-9.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/favicon-32x32.png",
+  "./icons/favicon-16x16.png",
   "./icons/apple-touch-icon.png"
 ];
 

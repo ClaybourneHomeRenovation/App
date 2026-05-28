@@ -446,17 +446,46 @@ function deletedArchiveIds() {
   }
 }
 
-function rememberDeletedArchive(id) {
-  if (!id) return;
+function deletedArchiveFingerprints() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(deletedArchiveFingerprintKey)) || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function isArchiveDeleted(entry) {
+  if (!entry) return false;
+  return deletedArchiveIds().has(entry.id) || deletedArchiveFingerprints().has(archiveDedupKey(entry));
+}
+
+function rememberDeletedArchive(entryOrId) {
+  const entry = typeof entryOrId === "object" ? entryOrId : archiveEntries().find(item => item.id === entryOrId);
+  const id = typeof entryOrId === "object" ? entryOrId?.id : entryOrId;
   const ids = deletedArchiveIds();
-  ids.add(id);
+  if (id) ids.add(id);
   localStorage.setItem(deletedArchiveKey, JSON.stringify([...ids].slice(-500)));
+  if (entry) {
+    const keys = deletedArchiveFingerprints();
+    keys.add(archiveDedupKey(entry));
+    localStorage.setItem(deletedArchiveFingerprintKey, JSON.stringify([...keys].slice(-500)));
+  }
+}
+
+function forgetDeletedArchive(entry) {
+  if (!entry) return;
+  const ids = deletedArchiveIds();
+  ids.delete(entry.id);
+  localStorage.setItem(deletedArchiveKey, JSON.stringify([...ids]));
+  const keys = deletedArchiveFingerprints();
+  keys.delete(archiveDedupKey(entry));
+  localStorage.setItem(deletedArchiveFingerprintKey, JSON.stringify([...keys]));
 }
 
 function dedupeArchiveEntries(entries) {
   const byKey = new Map();
   entries.forEach(entry => {
-    if (!entry?.id) return;
+    if (!entry?.id || isArchiveDeleted(entry)) return;
     const key = archiveDedupKey(entry);
     const current = byKey.get(key);
     if (!current || new Date(entry.savedAt || 0) > new Date(current.savedAt || 0)) {
@@ -468,6 +497,7 @@ function dedupeArchiveEntries(entries) {
 
 async function uploadLocalArchiveEntry(entry) {
   const bridge = window.ClaybourneSupabase;
+  if (isArchiveDeleted(entry)) return null;
   const { error } = await bridge.client
     .from("quote_archives")
     .upsert(archiveRecordToSupabase(entry), { onConflict: "id" });
@@ -584,16 +614,16 @@ async function syncArchiveFromSupabase() {
       .select("*")
       .order("saved_at", { ascending: false });
     if (error) throw error;
-    const deletedIds = deletedArchiveIds();
-    const cloudEntries = (data || []).map(supabaseArchiveToLocal).filter(entry => !deletedIds.has(entry.id));
-    const localEntries = archiveEntries();
+    const cloudEntries = (data || []).map(supabaseArchiveToLocal).filter(entry => !isArchiveDeleted(entry));
+    const localEntries = archiveEntries().filter(entry => !isArchiveDeleted(entry));
     const cloudKeys = new Set(cloudEntries.map(archiveDedupKey));
     const localOnly = localEntries.filter(entry => !cloudEntries.some(cloud => cloud.id === entry.id) && !cloudKeys.has(archiveDedupKey(entry)));
     const uploadedLocal = [];
     if (localOnly.length) {
       for (const entry of localOnly) {
         try {
-          uploadedLocal.push(await uploadLocalArchiveEntry(entry));
+          const uploaded = await uploadLocalArchiveEntry(entry);
+          if (uploaded) uploadedLocal.push(uploaded);
         } catch (uploadError) {
           console.warn("Local archive upload skipped:", uploadError.message || uploadError);
         }
@@ -758,6 +788,9 @@ const quickIds = ["quickWorkers", "quickDays", "quickHoursPerDay", "quickMateria
 const currency = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
 const archiveKey = "claybourneQuoteArchive";
 const deletedArchiveKey = "claybourneDeletedQuoteArchiveIds";
+const deletedArchiveFingerprintKey = "claybourneDeletedQuoteArchiveKeys";
+const deletedTaskKey = "claybourneDeletedTaskKeys";
+const dismissedReminderKey = "claybourneDismissedReminderKeys";
 let activeStep = "start";
 let saveStatusTimer;
 let quoteSuccessText = "";
@@ -767,7 +800,6 @@ let openLineIndex = null;
 let lineSwipeState = null;
 let lineTouchSwipeState = null;
 let dashboardQuoteSwipeState = null;
-let materialScreenshotFile = null;
 let editingMaterialId = null;
 let manualMaterialImageDataUrl = "";
 let manualMaterialImageFile = null;
@@ -905,8 +937,66 @@ function defaultTask(overrides = {}) {
     dueDate: todayISO(),
     snoozedUntil: "",
     silenced: false,
-    ...overrides
+    ...overrides,
+    id: overrides.id || `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   };
+}
+
+function localKeySet(storageKey) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(storageKey)) || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLocalKeySet(storageKey, values) {
+  localStorage.setItem(storageKey, JSON.stringify([...values].slice(-500)));
+}
+
+function compactKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function taskMemoryKey(task) {
+  return [
+    state.settings?.quoteNumber,
+    task?.task,
+    task?.assignedTo,
+    task?.startDate,
+    task?.dueDate
+  ].map(compactKey).join("|");
+}
+
+function rememberDeletedTask(task) {
+  const keys = localKeySet(deletedTaskKey);
+  keys.add(taskMemoryKey(task));
+  if (task?.id) keys.add(`id:${task.id}`);
+  saveLocalKeySet(deletedTaskKey, keys);
+}
+
+function rememberDismissedReminder(task) {
+  const keys = localKeySet(dismissedReminderKey);
+  keys.add(taskMemoryKey(task));
+  if (task?.id) keys.add(`id:${task.id}`);
+  saveLocalKeySet(dismissedReminderKey, keys);
+}
+
+function forgetDismissedReminder(task) {
+  const keys = localKeySet(dismissedReminderKey);
+  keys.delete(taskMemoryKey(task));
+  if (task?.id) keys.delete(`id:${task.id}`);
+  saveLocalKeySet(dismissedReminderKey, keys);
+}
+
+function isTaskDeleted(task) {
+  const keys = localKeySet(deletedTaskKey);
+  return keys.has(taskMemoryKey(task)) || (task?.id && keys.has(`id:${task.id}`));
+}
+
+function isReminderDismissed(task) {
+  const keys = localKeySet(dismissedReminderKey);
+  return keys.has(taskMemoryKey(task)) || (task?.id && keys.has(`id:${task.id}`)) || isTaskDeleted(task);
 }
 
 function defaultJobMaterial(overrides = {}) {
@@ -1012,6 +1102,37 @@ function applyProjectStarterItems(type) {
   state.subs = starter.subs;
 }
 
+function clearQuotePricingInputs() {
+  Object.assign(state.costs, {
+    prepHours: 0,
+    travelHours: 0,
+    pickupHours: 0,
+    cleanupHours: 0,
+    adminHours: 0,
+    helperCost: 0,
+    permitCost: 0,
+    disposalCost: 0,
+    protectionCost: 0,
+    miscCost: 0,
+    quickWorkers: 0,
+    quickDays: 0,
+    quickHoursPerDay: 0,
+    quickMaterialCost: 0,
+    quickOtherCost: 0
+  });
+  state.settings.depositPaid = 0;
+}
+
+function hasOnlyOldStarterPricing() {
+  const noClientStarted = !state.project.clientName && !state.project.projectAddress && !state.project.clientEmail && !state.meta.archiveId;
+  const noMaterialOrTradeCosts = !state.lines.length && !state.subs.length && !numberValue(state.costs.quickMaterialCost) && !numberValue(state.costs.quickOtherCost);
+  const oldQuickDefaults = numberValue(state.costs.quickWorkers) === 2 && numberValue(state.costs.quickDays) === 1 && numberValue(state.costs.quickHoursPerDay) === 7;
+  const oldDetailedDefaults = ["prepHours", "travelHours", "pickupHours", "cleanupHours", "adminHours"].every(id => numberValue(state.costs[id]) === 1)
+    && numberValue(state.costs.disposalCost) === 150
+    && numberValue(state.costs.protectionCost) === 85;
+  return noClientStarted && noMaterialOrTradeCosts && (oldQuickDefaults || oldDetailedDefaults);
+}
+
 function ensureStateShape() {
   state.settings = {
     ...presets.premium,
@@ -1051,19 +1172,19 @@ function ensureStateShape() {
   }
   if (!Array.isArray(state.project.siteConditions)) state.project.siteConditions = [];
   state.costs = {
-    prepHours: 1,
-    travelHours: 1,
-    pickupHours: 1,
-    cleanupHours: 1,
-    adminHours: 1,
+    prepHours: 0,
+    travelHours: 0,
+    pickupHours: 0,
+    cleanupHours: 0,
+    adminHours: 0,
     helperCost: 0,
     permitCost: 0,
-    disposalCost: 150,
-    protectionCost: 85,
+    disposalCost: 0,
+    protectionCost: 0,
     miscCost: 0,
-    quickWorkers: 2,
-    quickDays: 1,
-    quickHoursPerDay: 7,
+    quickWorkers: 0,
+    quickDays: 0,
+    quickHoursPerDay: 0,
     quickMaterialCost: 0,
     quickOtherCost: 0,
     quickRiskLevel: "medium",
@@ -1071,10 +1192,11 @@ function ensureStateShape() {
   };
   state.lines = Array.isArray(state.lines) ? state.lines : [];
   state.subs = Array.isArray(state.subs) ? state.subs : [];
+  if (hasOnlyOldStarterPricing()) clearQuotePricingInputs();
   state.payments = Array.isArray(state.payments) ? state.payments : [];
   state.expenses = Array.isArray(state.expenses) ? state.expenses : [];
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
-  state.tasks = state.tasks.map(task => defaultTask(task));
+  state.tasks = state.tasks.map(task => defaultTask(task)).filter(task => !isTaskDeleted(task));
   state.jobMaterials = Array.isArray(state.jobMaterials) ? state.jobMaterials : [];
   state.jobMaterials = state.jobMaterials.map(item => defaultJobMaterial(item));
   state.siteLogs = Array.isArray(state.siteLogs) ? state.siteLogs : [];
@@ -1153,9 +1275,9 @@ function loadState() {
     disposalCost: 0,
     protectionCost: 0,
     miscCost: 0,
-    quickWorkers: 2,
-    quickDays: 1,
-    quickHoursPerDay: 7,
+    quickWorkers: 0,
+    quickDays: 0,
+    quickHoursPerDay: 0,
     quickMaterialCost: 0,
     quickOtherCost: 0,
     quickRiskLevel: "medium"
@@ -1164,10 +1286,7 @@ function loadState() {
   state.subs = [];
   state.payments = [];
   state.expenses = [];
-  state.tasks = [
-    defaultTask({ task: "Confirm client selections", assignedTo: "Danny" }),
-    defaultTask({ task: "Schedule material pickup", assignedTo: "Julian" })
-  ];
+  state.tasks = [];
   state.jobMaterials = [];
   state.siteLogs = [];
   state.communications = [];
@@ -1218,7 +1337,7 @@ function archiveEntries() {
 }
 
 function saveArchiveEntries(entries) {
-  localStorage.setItem(archiveKey, JSON.stringify(dedupeArchiveEntries(entries)));
+  localStorage.setItem(archiveKey, JSON.stringify(dedupeArchiveEntries(entries.filter(entry => !isArchiveDeleted(entry)))));
 }
 
 function archiveCurrentQuote(status = "Saved") {
@@ -1240,6 +1359,7 @@ function archiveCurrentQuote(status = "Saved") {
     snapshot: stateSnapshot()
   };
   const key = archiveDedupKey(record);
+  forgetDeletedArchive(record);
   const existing = entries.findIndex(entry => entry.id === id || archiveDedupKey(entry) === key);
   if (existing >= 0) entries[existing] = record;
   else entries.unshift(record);
@@ -1580,70 +1700,6 @@ function parseMaterialText(text) {
   };
 }
 
-function fillMaterialFromOcrText() {
-  const text = document.getElementById("materialOcrText")?.value || "";
-  const status = document.getElementById("materialOcrStatus");
-  const parsed = parseMaterialText(text);
-  setManualMaterialFields(parsed);
-  if (status) {
-    status.innerHTML = parsed.name || parsed.unitPrice
-      ? `<div class="is-clear">Fields filled from screenshot text. Please review before saving.</div>`
-      : `<div>Could not find enough product details. You can still type the missing fields manually.</div>`;
-  }
-}
-
-function setMaterialScreenshotFile(file) {
-  const preview = document.getElementById("materialScreenshotPreview");
-  const status = document.getElementById("materialOcrStatus");
-  if (!file || !file.type.startsWith("image/")) {
-    if (status) status.innerHTML = `<div>Please choose an image file.</div>`;
-    return;
-  }
-  materialScreenshotFile = file;
-  if (preview) {
-    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
-    const url = URL.createObjectURL(file);
-    preview.dataset.objectUrl = url;
-    preview.src = url;
-    preview.classList.remove("is-hidden");
-  }
-  if (status) status.innerHTML = `<div class="is-clear">Screenshot added. Reading it now...</div>`;
-  window.setTimeout(extractMaterialFromScreenshot, 100);
-}
-
-async function extractMaterialFromScreenshot() {
-  const input = document.getElementById("materialScreenshotInput");
-  const status = document.getElementById("materialOcrStatus");
-  const textArea = document.getElementById("materialOcrText");
-  const file = materialScreenshotFile || input?.files?.[0];
-  if (!file) {
-    window.alert("Please upload a product screenshot first.");
-    return;
-  }
-  if (!window.Tesseract?.recognize) {
-    window.alert("Screenshot reading is not available in this browser session. You can paste product text into the box instead.");
-    return;
-  }
-  if (status) status.innerHTML = `<div>Reading screenshot. This can take a moment...</div>`;
-  try {
-    const result = await window.Tesseract.recognize(file, "eng", {
-      workerPath: "./tesseract-worker.min.js",
-      corePath: "./tesseract-core/tesseract-core-simd-lstm.js",
-      langPath: "https://tessdata.projectnaptha.com/4.0.0",
-      logger: progress => {
-        if (status && progress.status) {
-          const percent = progress.progress ? ` ${Math.round(progress.progress * 100)}%` : "";
-          status.innerHTML = `<div>Reading screenshot: ${escapeHTML(progress.status)}${percent}</div>`;
-        }
-      }
-    });
-    if (textArea) textArea.value = result.data.text || "";
-    fillMaterialFromOcrText();
-  } catch (error) {
-    if (status) status.innerHTML = `<div>Screenshot reading failed. If the app is opened as a file, use a local web URL or paste copied product text into the box, then use Fill Fields From Text.</div>`;
-  }
-}
-
 function useSupplierMaterial(id) {
   const product = supplierMaterials.find(item => item.id === id);
   if (!product) return;
@@ -1674,14 +1730,12 @@ function useSupplierMaterial(id) {
 }
 
 function clearManualMaterialForm() {
-  for (const id of ["manualProductName", "manualSupplier", "manualSku", "manualUnit", "manualPrice", "manualUrl", "manualCheckedDate", "materialOcrText"]) {
+  for (const id of ["manualProductName", "manualSupplier", "manualSku", "manualUnit", "manualPrice", "manualUrl", "manualCheckedDate"]) {
     const field = document.getElementById(id);
     if (field) field.value = "";
   }
   const category = document.getElementById("manualCategory");
   if (category) category.value = "Custom";
-  const screenshot = document.getElementById("materialScreenshotInput");
-  if (screenshot) screenshot.value = "";
   const manualImage = document.getElementById("manualImageInput");
   if (manualImage) manualImage.value = "";
   editingMaterialId = null;
@@ -1690,16 +1744,6 @@ function clearManualMaterialForm() {
   setManualMaterialImagePreview("");
   const saveButton = document.getElementById("saveManualMaterial");
   if (saveButton) saveButton.textContent = "Save Material";
-  materialScreenshotFile = null;
-  const preview = document.getElementById("materialScreenshotPreview");
-  if (preview) {
-    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
-    preview.dataset.objectUrl = "";
-    preview.src = "";
-    preview.classList.add("is-hidden");
-  }
-  const status = document.getElementById("materialOcrStatus");
-  if (status) status.innerHTML = "";
 }
 
 async function saveManualMaterial() {
@@ -1753,8 +1797,12 @@ function loadArchivedQuote(id) {
 
 function deleteArchivedQuote(id) {
   if (!id) return;
-  rememberDeletedArchive(id);
-  saveArchiveEntries(archiveEntries().filter(entry => entry.id !== id));
+  const entries = archiveEntries();
+  const target = entries.find(entry => entry.id === id);
+  if (target) rememberDeletedArchive(target);
+  else rememberDeletedArchive(id);
+  const targetKey = target ? archiveDedupKey(target) : "";
+  saveArchiveEntries(entries.filter(entry => entry.id !== id && (!targetKey || archiveDedupKey(entry) !== targetKey)));
   deleteArchiveRecordFromSupabase(id);
   if (state.meta.archiveId === id) state.meta.archiveId = "";
   renderArchive();
@@ -1807,9 +1855,9 @@ function newClientState() {
     disposalCost: 0,
     protectionCost: 0,
     miscCost: 0,
-    quickWorkers: 2,
-    quickDays: 1,
-    quickHoursPerDay: 7,
+    quickWorkers: 0,
+    quickDays: 0,
+    quickHoursPerDay: 0,
     quickMaterialCost: 0,
     quickOtherCost: 0,
     quickRiskLevel: "medium"
@@ -1818,10 +1866,7 @@ function newClientState() {
   state.subs = [];
   state.payments = [];
   state.expenses = [];
-  state.tasks = [
-    defaultTask({ task: "Confirm client selections", assignedTo: "Danny" }),
-    defaultTask({ task: "Schedule material pickup", assignedTo: "Julian" })
-  ];
+  state.tasks = [];
   state.jobMaterials = [];
   state.siteLogs = [];
   state.communications = [];
@@ -1901,7 +1946,8 @@ function totals() {
   const directBeforeMinimum = quickMode
     ? lineTotals.directLines
     : lineTotals.directLines + extraLabourCost + numberValue(state.costs.helperCost) + subCost + numberValue(state.costs.permitCost) + numberValue(state.costs.disposalCost) + numberValue(state.costs.protectionCost) + numberValue(state.costs.miscCost);
-  const directCost = Math.max(directBeforeMinimum, numberValue(state.settings.minimumJob));
+  const minimumCharge = numberValue(state.settings.minimumJob);
+  const directCost = directBeforeMinimum > 0 ? Math.max(directBeforeMinimum, minimumCharge) : 0;
   const minimumAdjustment = Math.max(0, directCost - directBeforeMinimum);
   const overheadCost = directCost * numberValue(state.settings.overheadRate) / 100;
   const contingencyRate = quickMode ? quickRiskRate() : numberValue(state.settings.contingencyRate);
@@ -2873,22 +2919,69 @@ function daysUntil(dateValue) {
   return Math.ceil((due - today) / 86400000);
 }
 
+const dashboardJobStatuses = ["Submitted", "Follow-up needed", "Approved", "Deposit paid", "In progress", "Completed", "Balance due"];
+
+function entryStatus(entry) {
+  return entry?.status || entry?.snapshot?.project?.jobStatus || "Draft";
+}
+
+function dashboardJobEntries() {
+  return activeJobEntries();
+}
+
+function isDashboardJobLoaded() {
+  return Boolean(state.meta.archiveId) && dashboardJobStatuses.includes(state.project.jobStatus || "Draft");
+}
+
 function renderJobDashboard() {
   const title = document.getElementById("jobDashboardTitle");
   const status = document.getElementById("dashboardStatus");
   const cards = document.getElementById("jobDashboardCards");
   if (!title || !status || !cards) return;
+  const hasDashboardJob = isDashboardJobLoaded();
+  toggleDashboardTrackingEnabled(hasDashboardJob);
+  if (!hasDashboardJob) {
+    title.textContent = "Job Dashboard";
+    status.textContent = "No active job";
+    cards.innerHTML = `
+      <article class="dashboard-empty-summary">
+        <span>No job selected</span>
+        <strong>Submit and archive a quote before it appears here.</strong>
+        <small>The quote builder can still save drafts, but the dashboard only tracks submitted or approved work.</small>
+      </article>
+    `;
+    renderDashboardJobSelect();
+    renderActiveJobCards();
+    renderReminders();
+    renderDashboardDraftMenus();
+    renderTasks();
+    renderSiteLogs();
+    renderPhotos();
+    autoGrowAllTextareas();
+    return;
+  }
   const a = accountingBreakdown();
   const quoteName = state.project.clientName || "Current Quote";
   const quoteType = state.project.projectType || "Project Quote";
   title.textContent = quoteName;
   status.textContent = state.project.jobStatus || "Draft";
   cards.innerHTML = `
-    <div class="quote-context-card"><span>Selected Quote</span><strong>${escapeHTML(quoteName)}</strong><small>${escapeHTML(quoteType)}${state.project.projectAddress ? ` | ${escapeHTML(state.project.projectAddress)}` : ""}</small></div>
-    <div><span>Total Quote</span><strong>${money(a.totalQuote)}</strong><small>For ${escapeHTML(quoteName)}</small></div>
-    <div><span>Initial Deposit</span><strong>${money(a.materialDeposit)}</strong><small>Materials due upfront</small></div>
-    <div><span>Balance Due</span><strong>${money(a.balance)}</strong><small>Remaining for this quote</small></div>
-    <div><span>Valid Until</span><strong>${escapeHTML(state.settings.validUntil || "Not set")}</strong><small>Quote expiry date</small></div>
+    <article class="current-quote-summary">
+      <div class="current-quote-main">
+        <span>${escapeHTML(state.project.jobStatus || "Draft")}</span>
+        <strong>${escapeHTML(quoteName)}</strong>
+        <small>${escapeHTML(quoteType)}${state.project.projectAddress ? ` | ${escapeHTML(state.project.projectAddress)}` : ""}</small>
+      </div>
+      <div class="current-quote-money">
+        <div><span>Total</span><strong>${money(a.totalQuote)}</strong></div>
+        <div><span>Deposit</span><strong>${money(a.materialDeposit)}</strong></div>
+        <div><span>Balance</span><strong>${money(a.balance)}</strong></div>
+      </div>
+      <div class="current-quote-meta">
+        <small>Valid until ${escapeHTML(state.settings.validUntil || "Not set")}</small>
+        <button class="ghost-button" type="button" data-open-dashboard-job="__current__">Open Quote</button>
+      </div>
+    </article>
   `;
   renderDashboardJobSelect();
   renderActiveJobCards();
@@ -2901,10 +2994,30 @@ function renderJobDashboard() {
 }
 
 function renderDashboardDraftMenus() {
+  if (!isDashboardJobLoaded()) {
+    dashboardDrafts.task = null;
+    dashboardDrafts.material = null;
+    dashboardDrafts.siteLog = null;
+    dashboardDrafts.communication = null;
+  }
   renderTaskDraftMenu();
   renderMaterialDraftMenu();
   renderSiteLogDraftMenu();
   renderCommunicationDraftMenu();
+}
+
+function toggleDashboardTrackingEnabled(enabled) {
+  ["createTask", "createSiteLog"].forEach(id => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.disabled = !enabled;
+    button.title = enabled ? "" : "Open a submitted or active archived job first.";
+  });
+  const photoDrop = document.getElementById("photoDropZone");
+  if (photoDrop) {
+    photoDrop.classList.toggle("is-disabled", !enabled);
+    photoDrop.setAttribute("aria-disabled", String(!enabled));
+  }
 }
 
 function renderTaskDraftMenu() {
@@ -3015,20 +3128,18 @@ function renderCommunicationDraftMenu() {
 }
 
 function activeJobEntries() {
-  const activeStatuses = ["Draft", "Sent", "Follow-up needed", "Approved", "Deposit paid", "In progress", "Balance due"];
   return archiveEntries()
-    .filter(entry => activeStatuses.includes(entry.status || entry.snapshot?.project?.jobStatus || "Draft"))
+    .filter(entry => dashboardJobStatuses.includes(entryStatus(entry)))
     .sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
 }
 
 function renderDashboardJobSelect() {
   const select = document.getElementById("dashboardJobSelect");
   if (!select) return;
-  const currentLabel = `${state.project.clientName || "Current quote"} - ${state.project.projectType || "Project"} - ${money(totals().totalQuote)}`;
   const currentId = state.meta.archiveId || "";
   const entries = activeJobEntries().filter(entry => !currentId || entry.id !== currentId);
   select.innerHTML = `
-    <option value="__current__">${escapeHTML(currentLabel)} (open now)</option>
+    <option value="">Choose an archived job</option>
     ${entries.map(entry => {
       const selected = currentId && entry.id === currentId ? "selected" : "";
       const label = `${entry.clientName || "Unnamed Client"} - ${entry.projectType || "Project"} - ${entry.status || "Draft"} - ${money(entry.totalQuote)}`;
@@ -3073,10 +3184,9 @@ function renderActiveJobCards() {
   if (!wrap) return;
   const currentId = state.meta.archiveId || "";
   const entries = activeJobEntries().filter(entry => !currentId || entry.id !== currentId).slice(0, 4);
-  wrap.innerHTML = [
-    activeJobCard({ snapshot: state }, true),
-    ...entries.map(entry => activeJobCard(entry))
-  ].join("");
+  wrap.innerHTML = entries.length
+    ? entries.map(entry => activeJobCard(entry)).join("")
+    : `<div class="empty-state compact-empty-state">No submitted or active jobs yet.</div>`;
 }
 
 function renderDashboardJobPreview() {
@@ -3089,10 +3199,14 @@ function renderDashboardJobPreview() {
     preview.innerHTML = "";
     return;
   }
+  if (selected === "__current__") {
+    preview.innerHTML = "";
+    return;
+  }
   const snapshot = entry.snapshot || state;
   const project = snapshot.project || {};
   const settings = snapshot.settings || {};
-  const total = selected === "__current__" ? totals().totalQuote : numberValue(entry.totalQuote);
+  const total = numberValue(entry.totalQuote);
   preview.innerHTML = `
     <div>
       <span>${escapeHTML(project.jobStatus || entry.status || "Draft")}</span>
@@ -3107,10 +3221,9 @@ function renderDashboardJobPreview() {
 function openDashboardJob() {
   const select = document.getElementById("dashboardJobSelect");
   const id = select?.value;
-  if (!id || id === "__current__" || id === state.meta.archiveId) return;
-  if (state.meta.dirty) archiveCurrentQuote(state.project.jobStatus || "Draft");
+  if (!id || id === state.meta.archiveId) return;
   loadArchivedQuote(id);
-  activeStep = "start";
+  activeStep = "dashboard";
   renderFlow();
 }
 
@@ -3119,9 +3232,10 @@ function isSnoozed(task) {
 }
 
 function dueReminderItems() {
+  if (!isDashboardJobLoaded()) return [];
   return state.tasks
     .map((task, index) => ({ ...task, index, delta: daysUntil(task.dueDate) }))
-    .filter(task => task.status !== "Complete" && !task.silenced && !isSnoozed(task) && task.delta <= 2)
+    .filter(task => task.status !== "Complete" && !task.silenced && !isReminderDismissed(task) && !isSnoozed(task) && task.delta <= 2)
     .sort((a, b) => a.delta - b.delta);
 }
 
@@ -3149,6 +3263,10 @@ function renderReminders() {
 function renderTasks() {
   const wrap = document.getElementById("taskItems");
   if (!wrap) return;
+  if (!isDashboardJobLoaded()) {
+    wrap.innerHTML = `<div class="empty-state">Open a submitted or active archived job to add reminders.</div>`;
+    return;
+  }
   const openIndex = state.tasks.findIndex(task => !task.task);
   wrap.innerHTML = state.tasks.length ? state.tasks.map((task, index) => `
     <details class="ops-card" ${index === openIndex ? "open" : ""}>
@@ -3237,6 +3355,11 @@ function renderJobMaterials() {
 }
 
 function renderSiteLogs() {
+  if (!isDashboardJobLoaded()) {
+    const wrap = document.getElementById("siteLogItems");
+    if (wrap) wrap.innerHTML = `<div class="empty-state">Open a submitted or active archived job to add site notes.</div>`;
+    return;
+  }
   renderSimpleLog("siteLogItems", state.siteLogs, "site-log", "Job note");
 }
 
@@ -3271,6 +3394,10 @@ function renderCommunications() {
 function renderPhotos() {
   const wrap = document.getElementById("photoItems");
   if (!wrap) return;
+  if (!isDashboardJobLoaded()) {
+    wrap.innerHTML = `<div class="empty-state">Open a submitted or active archived job to track photos.</div>`;
+    return;
+  }
   wrap.innerHTML = state.photos.length ? state.photos.map((item, index) => `
     <details class="ops-card photo-card">
       <summary>
@@ -3389,6 +3516,12 @@ function renderFlow() {
     quoteActions.classList.toggle("is-step-hidden", mainSection !== "quote");
     quoteActions.hidden = mainSection !== "quote";
     quoteActions.style.display = mainSection !== "quote" ? "none" : "";
+  }
+  const mobileSummary = document.querySelector(".mobile-quote-summary");
+  if (mobileSummary) {
+    mobileSummary.classList.toggle("is-step-hidden", mainSection !== "quote");
+    mobileSummary.hidden = mainSection !== "quote";
+    mobileSummary.style.display = mainSection !== "quote" ? "none" : "";
   }
   document.querySelector(".builder-grid")?.classList.toggle("start-only", activeStep === "start");
   document.querySelector(".builder-grid")?.classList.remove("is-step-hidden");
@@ -4300,7 +4433,7 @@ function bindEvents() {
   });
   document.addEventListener("drop", event => {
     if (!event.dataTransfer?.types?.includes("Files")) return;
-    if (event.target.closest("#materialScreenshotZone, #photoDropZone")) return;
+    if (event.target.closest("#photoDropZone")) return;
     event.preventDefault();
   });
 
@@ -4338,6 +4471,7 @@ function bindEvents() {
       state.meta.dirty = true;
       if (id === "projectType") {
         applyJobTemplate(event.target.value, true);
+        clearQuotePricingInputs();
         render();
         return;
       }
@@ -4488,6 +4622,10 @@ function bindEvents() {
   document.getElementById("importArchive")?.addEventListener("change", importArchiveBackup);
   document.getElementById("openDashboardJob")?.addEventListener("click", openDashboardJob);
   document.getElementById("dashboardJobSelect")?.addEventListener("change", renderDashboardJobPreview);
+  document.getElementById("jobDashboardCards")?.addEventListener("click", event => {
+    const id = event.target.closest("[data-open-dashboard-job]")?.dataset.openDashboardJob;
+    openDashboardQuoteById(id);
+  });
   document.getElementById("activeJobCards")?.addEventListener("pointerdown", handleDashboardQuoteSwipeStart);
   document.getElementById("activeJobCards")?.addEventListener("pointermove", handleDashboardQuoteSwipeMove);
   document.getElementById("activeJobCards")?.addEventListener("pointerup", handleDashboardQuoteSwipeEnd);
@@ -4540,31 +4678,6 @@ function bindEvents() {
   document.getElementById("manualImageInput")?.addEventListener("change", event => {
     setManualMaterialImageFile(event.target.files?.[0]);
   });
-  document.getElementById("fillMaterialFromText")?.addEventListener("click", fillMaterialFromOcrText);
-  document.getElementById("materialOcrText")?.addEventListener("input", () => {
-    window.clearTimeout(window.materialOcrParseTimer);
-    window.materialOcrParseTimer = window.setTimeout(fillMaterialFromOcrText, 400);
-  });
-  document.getElementById("extractMaterialFromImage")?.addEventListener("click", extractMaterialFromScreenshot);
-  document.getElementById("materialScreenshotZone")?.addEventListener("click", () => document.getElementById("materialScreenshotInput")?.click());
-  document.getElementById("materialScreenshotInput")?.addEventListener("change", event => {
-    setMaterialScreenshotFile(event.target.files?.[0]);
-  });
-  document.getElementById("materialScreenshotZone")?.addEventListener("dragover", event => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    event.currentTarget.classList.add("is-dragging");
-  });
-  document.getElementById("materialScreenshotZone")?.addEventListener("dragleave", event => {
-    event.currentTarget.classList.remove("is-dragging");
-  });
-  document.getElementById("materialScreenshotZone")?.addEventListener("drop", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.classList.remove("is-dragging");
-    const file = [...event.dataTransfer.files].find(item => item.type.startsWith("image/"));
-    setMaterialScreenshotFile(file);
-  });
   document.getElementById("materialProductList")?.addEventListener("click", event => {
     const useId = event.target.closest("[data-use-material]")?.dataset.useMaterial;
     const editId = event.target.closest("[data-edit-material]")?.dataset.editMaterial;
@@ -4573,6 +4686,7 @@ function bindEvents() {
   });
 
   document.getElementById("createTask")?.addEventListener("click", () => {
+    if (!isDashboardJobLoaded()) return;
     dashboardDrafts.task = defaultTask();
     renderTaskDraftMenu();
     autoGrowAllTextareas();
@@ -4586,6 +4700,9 @@ function bindEvents() {
     const index = event.target.dataset.removeTask;
     if (index !== undefined) {
       event.preventDefault();
+      const task = state.tasks[Number(index)];
+      rememberDeletedTask(task);
+      rememberDismissedReminder(task);
       state.tasks.splice(Number(index), 1);
       state.meta.dirty = true;
       render();
@@ -4595,7 +4712,10 @@ function bindEvents() {
     const unsilence = event.target.dataset.unsilenceTask;
     if (unsilence === undefined) return;
     event.preventDefault();
-    state.tasks[Number(unsilence)].silenced = false;
+    const task = state.tasks[Number(unsilence)];
+    if (!task) return;
+    forgetDismissedReminder(task);
+    task.silenced = false;
     state.meta.dirty = true;
     renderJobDashboard();
     saveStateNow();
@@ -4612,14 +4732,20 @@ function bindEvents() {
       saveStateNow();
     }
     if (silenceIndex !== undefined) {
-      state.tasks[Number(silenceIndex)].silenced = true;
+      const task = state.tasks[Number(silenceIndex)];
+      if (!task) return;
+      task.silenced = true;
+      rememberDismissedReminder(task);
       state.meta.dirty = true;
       renderJobDashboard();
       saveStateNow();
     }
     if (endIndex !== undefined) {
-      state.tasks[Number(endIndex)].status = "Complete";
-      state.tasks[Number(endIndex)].silenced = true;
+      const task = state.tasks[Number(endIndex)];
+      if (!task) return;
+      task.status = "Complete";
+      task.silenced = true;
+      rememberDismissedReminder(task);
       state.meta.dirty = true;
       renderJobDashboard();
       saveStateNow();
@@ -4627,6 +4753,7 @@ function bindEvents() {
   });
 
   document.getElementById("createJobMaterial")?.addEventListener("click", () => {
+    if (!isDashboardJobLoaded()) return;
     dashboardDrafts.material = defaultJobMaterial();
     renderMaterialDraftMenu();
     autoGrowAllTextareas();
@@ -4647,6 +4774,7 @@ function bindEvents() {
   });
 
   document.getElementById("createSiteLog")?.addEventListener("click", () => {
+    if (!isDashboardJobLoaded()) return;
     dashboardDrafts.siteLog = defaultSiteLog();
     renderSiteLogDraftMenu();
     autoGrowAllTextareas();
@@ -4667,6 +4795,7 @@ function bindEvents() {
   });
 
   document.getElementById("createCommunication")?.addEventListener("click", () => {
+    if (!isDashboardJobLoaded()) return;
     dashboardDrafts.communication = defaultCommunication();
     renderCommunicationDraftMenu();
   });
@@ -4685,13 +4814,17 @@ function bindEvents() {
     saveStateNow();
   });
 
-  document.getElementById("photoDropZone")?.addEventListener("click", () => document.getElementById("photoUploadInput")?.click());
+  document.getElementById("photoDropZone")?.addEventListener("click", () => {
+    if (!isDashboardJobLoaded()) return;
+    document.getElementById("photoUploadInput")?.click();
+  });
   document.getElementById("photoUploadInput")?.addEventListener("change", event => {
-    addPhotoFiles(event.target.files);
+    if (isDashboardJobLoaded()) addPhotoFiles(event.target.files);
     event.target.value = "";
   });
   document.getElementById("photoDropZone")?.addEventListener("dragover", event => {
     event.preventDefault();
+    if (!isDashboardJobLoaded()) return;
     event.currentTarget.classList.add("is-dragging");
   });
   document.getElementById("photoDropZone")?.addEventListener("dragleave", event => {
@@ -4700,6 +4833,7 @@ function bindEvents() {
   document.getElementById("photoDropZone")?.addEventListener("drop", event => {
     event.preventDefault();
     event.currentTarget.classList.remove("is-dragging");
+    if (!isDashboardJobLoaded()) return;
     addPhotoFiles(event.dataTransfer.files);
   });
   document.getElementById("photoItems")?.addEventListener("input", handlePhotoEdit);

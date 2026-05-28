@@ -10,6 +10,8 @@
     <title>Claybourne Quote Builder</title>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css">
   </head>
@@ -630,20 +632,6 @@
 
           <details class="manual-material-entry">
             <summary>Add or update material manually</summary>
-            <div class="screenshot-material-entry">
-              <div class="photo-drop-zone material-screenshot-zone" id="materialScreenshotZone">
-                <input id="materialScreenshotInput" type="file" accept="image/*">
-                <strong>Upload or drag product screenshot here</strong>
-                <span>Drop an image here, then click Extract From Screenshot.</span>
-              </div>
-              <img class="material-screenshot-preview is-hidden" id="materialScreenshotPreview" alt="Product screenshot preview">
-              <textarea id="materialOcrText" rows="5" placeholder="Screenshot text will appear here. You can also paste copied product text from your phone."></textarea>
-              <div class="manual-material-actions">
-                <button class="secondary-button" id="extractMaterialFromImage" type="button">Extract From Screenshot</button>
-                <button class="ghost-button" id="fillMaterialFromText" type="button">Fill Fields From Text</button>
-              </div>
-              <div class="financial-alerts" id="materialOcrStatus"></div>
-            </div>
             <div class="manual-material-grid">
               <label>Product name
                 <input id="manualProductName" type="text" placeholder="Example: Schluter Kerdi membrane">
@@ -717,8 +705,10 @@
             <span class="status-pill" id="dashboardStatus">Draft</span>
           </div>
 
+          <div class="quote-dashboard-card-grid" id="jobDashboardCards"></div>
+
           <div class="dashboard-job-picker">
-            <label>Active quote
+            <label>Other saved quotes
               <select id="dashboardJobSelect"></select>
             </label>
             <button class="ghost-button" id="openDashboardJob" type="button">Open Quote</button>
@@ -726,8 +716,6 @@
           </div>
 
           <div class="active-job-cards" id="activeJobCards"></div>
-
-          <div class="quote-dashboard-card-grid" id="jobDashboardCards"></div>
 
           <section class="dashboard-reminders">
             <div class="panel-title-row">
@@ -835,13 +823,12 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
-    <script src="tesseract.min.js"></script>
     <script src="data/supplier_catalog.generated.js"></script>
     <script src="app.js"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("./sw.js?v=15").then(registration => {
+          navigator.serviceWorker.register("./sw.js?v=22").then(registration => {
             registration.update();
             registration.addEventListener("updatefound", () => {
               const worker = registration.installing;
